@@ -3,24 +3,9 @@ package handler
 import (
 	"net/http"
 
+	"github.com/WahyuSiddarta/be_saham_chi/internal/auth"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/response"
-	"github.com/WahyuSiddarta/be_saham_chi/internal/service"
-	"github.com/rs/zerolog"
 )
-
-type Handler struct {
-	status      string
-	log         *zerolog.Logger
-	authService *service.AuthService
-}
-
-func New(status string, log *zerolog.Logger, authService *service.AuthService) Handler {
-	return Handler{
-		status:      status,
-		log:         log,
-		authService: authService,
-	}
-}
 
 func (h Handler) Health(w http.ResponseWriter, r *http.Request) {
 	if err := response.Success(w, http.StatusOK, map[string]string{
@@ -28,5 +13,23 @@ func (h Handler) Health(w http.ResponseWriter, r *http.Request) {
 		"env":     h.status,
 	}); err != nil {
 		h.log.Error().Err(err).Msg("write health response")
+	}
+}
+
+func (h Handler) ProtectedExample(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		h.fail(w, http.StatusUnauthorized, "missing authentication claims")
+		return
+	}
+
+	if err := response.Success(w, http.StatusOK, map[string]any{
+		"message": "authenticated",
+		"user_id": claims.UserID,
+		"email":   claims.Email,
+		"role_id": claims.RoleID,
+		"rules":   claims.Rules,
+	}); err != nil {
+		h.log.Error().Err(err).Msg("write protected example response")
 	}
 }

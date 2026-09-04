@@ -19,7 +19,6 @@ type loginRequest struct {
 }
 
 type loginResponse struct {
-	Status    string    `json:"status"`
 	Token     string    `json:"token"`
 	TokenType string    `json:"token_type"`
 	ExpiresAt string    `json:"expires_at"`
@@ -76,8 +75,7 @@ func (h Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := responseJSON(w, http.StatusOK, loginResponse{
-		Status:    "ok",
+	if err := response.Success(w, http.StatusOK, loginResponse{
 		Token:     result.Token,
 		TokenType: "Bearer",
 		ExpiresAt: result.ExpiresAt.Format(time.RFC3339Nano),
@@ -86,16 +84,4 @@ func (h Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		h.log.Error().Err(err).Msg("write login response")
 	}
-}
-
-func (h Handler) fail(w http.ResponseWriter, status int, message string) {
-	if err := response.Fail(w, status, message); err != nil {
-		h.log.Error().Err(err).Msg("write login failure response")
-	}
-}
-
-func responseJSON(w http.ResponseWriter, status int, data any) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	return json.NewEncoder(w).Encode(data)
 }

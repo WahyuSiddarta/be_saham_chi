@@ -40,6 +40,7 @@ func (app Application) routes() http.Handler {
 	handlers := handler.New(app.config.status, Log, authService)
 	r.Get("/health", handlers.Health)
 	r.Post("/auth/login", handlers.Login)
+	r.With(auth.Middleware(app.config.jwt)).Get("/protected", handlers.ProtectedExample)
 
 	return r
 }

@@ -47,3 +47,24 @@ func GenerateToken(config Config, user repository.User, now time.Time) (string, 
 
 	return signedToken, expiresAt, nil
 }
+
+func ParseToken(config Config, tokenText string) (Claims, error) {
+	claims := Claims{}
+	token, err := jwt.ParseWithClaims(
+		tokenText,
+		&claims,
+		func(token *jwt.Token) (any, error) {
+			if token.Method != jwt.SigningMethodHS256 {
+				return nil, ErrInvalidToken
+			}
+			return []byte(config.Secret), nil
+		},
+		jwt.WithIssuer(config.Issuer),
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+	)
+	if err != nil || token == nil || !token.Valid {
+		return Claims{}, ErrInvalidToken
+	}
+
+	return claims, nil
+}
