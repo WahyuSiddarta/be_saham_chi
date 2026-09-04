@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/WahyuSiddarta/be_saham_chi/internal/database"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/logger"
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
@@ -24,9 +25,10 @@ func main() {
 	}
 
 	app := Application{config: Config{
-		addr:    net.JoinHostPort(os.Getenv("APP_HOST"), os.Getenv("APP_PORT")),
-		logFile: os.Getenv("APP_LOG_FILE"),
-		status:  os.Getenv("APP_ENV"),
+		addr:        net.JoinHostPort(os.Getenv("APP_HOST"), os.Getenv("APP_PORT")),
+		databaseURL: os.Getenv("DATABASE_URL"),
+		logFile:     os.Getenv("APP_LOG_FILE"),
+		status:      os.Getenv("APP_ENV"),
 	}}
 	if app.config.addr == ":" {
 		Log.Fatal().Msg("APP_HOST and APP_PORT must be set")
@@ -46,6 +48,15 @@ func main() {
 		}
 	}()
 
+	databaseContext, cancelDatabaseConnection := context.WithTimeout(context.Background(), 10*time.Second)
+	databasePool, err := database.NewPostgreSQLPool(databaseContext, app.config.databaseURL)
+	cancelDatabaseConnection()
+	if err != nil {
+		Log.Fatal().Err(err).Msg("connect PostgreSQL")
+	}
+	app.database = databasePool
+	defer app.database.Close()
+
 	server := &http.Server{
 		Addr:    app.config.addr,
 		Handler: app.routes(),
@@ -60,6 +71,7 @@ func main() {
 	signal.Notify(shutdownSignals, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(shutdownSignals)
 
+	Log.Info().Msg("PostgreSQL pool connected")
 	Log.Info().Str("addr", app.config.addr).Msg("API server starting")
 	select {
 	case err := <-serverErrors:
