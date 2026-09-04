@@ -13,12 +13,12 @@ import (
 	"github.com/WahyuSiddarta/be_saham_chi/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jmoiron/sqlx"
 )
 
 type Application struct {
 	config   Config
-	database *pgxpool.Pool
+	database *sqlx.DB
 }
 
 type Config struct {

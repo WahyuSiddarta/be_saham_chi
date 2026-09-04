@@ -41,6 +41,10 @@ func main() {
 		Log.Fatal().Err(err).Msg("load JWT configuration")
 	}
 	app.config.jwt = jwtConfig
+	poolConfig, err := database.LoadPoolConfigFromEnv()
+	if err != nil {
+		Log.Fatal().Err(err).Msg("load PostgreSQL pool configuration")
+	}
 
 	logFile, err := logger.ConfigureFile(os.Stdout, app.config.logFile)
 	if err != nil {
@@ -54,7 +58,7 @@ func main() {
 	}()
 
 	databaseContext, cancelDatabaseConnection := context.WithTimeout(context.Background(), 10*time.Second)
-	databasePool, err := database.NewPostgreSQLPool(databaseContext, app.config.databaseURL)
+	databasePool, err := database.NewPostgreSQLPool(databaseContext, app.config.databaseURL, poolConfig)
 	cancelDatabaseConnection()
 	if err != nil {
 		Log.Fatal().Err(err).Msg("connect PostgreSQL")

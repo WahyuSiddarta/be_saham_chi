@@ -3,11 +3,11 @@ package database
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jmoiron/sqlx"
 )
 
-func EnsureAuthTables(ctx context.Context, pool *pgxpool.Pool) error {
-	_, err := pool.Exec(ctx, `
+func EnsureAuthTables(ctx context.Context, pool *sqlx.DB) error {
+	_, err := pool.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS t_role (
 			role_id INTEGER PRIMARY KEY,
 			name VARCHAR NOT NULL

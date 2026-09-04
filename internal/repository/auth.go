@@ -3,10 +3,9 @@ package repository
 import (
 	"context"
 	"crypto/sha1"
+	"database/sql"
 	"encoding/hex"
 	"errors"
-
-	"github.com/jackc/pgx/v5"
 )
 
 var (
@@ -15,23 +14,23 @@ var (
 )
 
 type User struct {
-	ID       string
-	Email    string
-	Password string
-	RoleID   int
-	Status   bool
+	ID       string `db:"user_id"`
+	Email    string `db:"email"`
+	Password string `db:"password"`
+	RoleID   int    `db:"role"`
+	Status   bool   `db:"status"`
 	Rules    []string
 }
 
 func (r *Repository) Login(ctx context.Context, email, password string) (User, error) {
 	var user User
-	err := r.pool.QueryRow(ctx, `
-		SELECT user_id::text, email, password, role, status
+	err := r.db.GetContext(ctx, &user, `
+		SELECT user_id::text AS user_id, email, password, role, status
 		FROM t_user
 		WHERE email = $1
-	`, email).Scan(&user.ID, &user.Email, &user.Password, &user.RoleID, &user.Status)
+	`, email)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return User{}, ErrInvalidCredentials
 		}
 		return User{}, err
@@ -55,7 +54,8 @@ func (r *Repository) Login(ctx context.Context, email, password string) (User, e
 }
 
 func (r *Repository) listRoleRules(ctx context.Context, roleID int) ([]string, error) {
-	rows, err := r.pool.Query(ctx, `
+	rules := make([]string, 0)
+	err := r.db.SelectContext(ctx, &rules, `
 		SELECT ar.code
 		FROM t_role_acl_rule rar
 		JOIN t_acl_rule ar ON ar.acl_rule_id = rar.acl_rule_id
@@ -65,18 +65,8 @@ func (r *Repository) listRoleRules(ctx context.Context, roleID int) ([]string, e
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	rules := make([]string, 0)
-	for rows.Next() {
-		var rule string
-		if err := rows.Scan(&rule); err != nil {
-			return nil, err
-		}
-		rules = append(rules, rule)
-	}
-
-	return rules, rows.Err()
+	return rules, nil
 }
 
 func hashPassword(password, salt string) string {
