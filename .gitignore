@@ -26,6 +26,14 @@ go.work.sum
 
 # env file
 .env
+.env.*
+!.env.example
+
+# Local logs
+logs/
+
+# Local agent instructions
+AGENTS.md
 
 # Editor/IDE
 # .idea/

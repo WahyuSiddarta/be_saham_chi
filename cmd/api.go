@@ -13,18 +13,14 @@ type Application struct {
 }
 
 type Config struct {
-	addr string
-	db   dbConfig
-}
-
-type dbConfig struct {
-	dsn string
+	addr    string
+	logFile string
+	status  string
 }
 
 func (app Application) routes() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
 	r.Use(middleware.RequestLogger(logger.ChiLogFormatter()))
 	r.Use(middleware.Recoverer)
 
