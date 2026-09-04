@@ -4,18 +4,21 @@ import (
 	"net/http"
 
 	"github.com/WahyuSiddarta/be_saham_chi/internal/response"
+	"github.com/WahyuSiddarta/be_saham_chi/internal/service"
 	"github.com/rs/zerolog"
 )
 
 type Handler struct {
-	status string
-	log    *zerolog.Logger
+	status      string
+	log         *zerolog.Logger
+	authService *service.AuthService
 }
 
-func New(status string, log *zerolog.Logger) Handler {
+func New(status string, log *zerolog.Logger, authService *service.AuthService) Handler {
 	return Handler{
-		status: status,
-		log:    log,
+		status:      status,
+		log:         log,
+		authService: authService,
 	}
 }
 

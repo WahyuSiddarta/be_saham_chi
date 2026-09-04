@@ -36,6 +36,11 @@ func main() {
 	if app.config.logFile == "" {
 		Log.Fatal().Msg("APP_LOG_FILE must be set")
 	}
+	jwtConfig, err := loadJWTConfig()
+	if err != nil {
+		Log.Fatal().Err(err).Msg("load JWT configuration")
+	}
+	app.config.jwt = jwtConfig
 
 	logFile, err := logger.ConfigureFile(os.Stdout, app.config.logFile)
 	if err != nil {
@@ -56,6 +61,13 @@ func main() {
 	}
 	app.database = databasePool
 	defer app.database.Close()
+
+	schemaContext, cancelSchema := context.WithTimeout(context.Background(), 10*time.Second)
+	err = database.EnsureAuthTables(schemaContext, app.database)
+	cancelSchema()
+	if err != nil {
+		Log.Fatal().Err(err).Msg("ensure auth tables")
+	}
 
 	server := &http.Server{
 		Addr:    app.config.addr,
