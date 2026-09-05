@@ -1,0 +1,3125 @@
+openapi: 3.0.3
+info:
+  title: be_saham_chi API
+  version: 0.1.0
+  description: API for stock portfolio tracking, commodity market quotes, and portfolio cash management.
+servers:
+  - url: http://localhost:8080
+    description: Local development
+tags:
+  - name: Health
+  - name: Auth
+  - name: Commodities
+  - name: Stocks
+  - name: Portfolios
+  - name: Cash
+  - name: Bond
+  - name: Portfolio Commodities
+  - name: Master Data
+x-tagGroups:
+  - name: General
+    tags:
+      - Health
+      - Auth
+      - Commodities
+      - Stocks
+  - name: Portfolio
+    tags:
+      - Portfolios
+      - Cash
+      - Bond
+      - Portfolio Commodities
+  - name: Admin
+    tags:
+      - Master Data
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Check API health
+      responses:
+        "200":
+          description: API is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /api/v1/public/auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User registered and default portfolio created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/public/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login and get a bearer token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/commodities/{commodity}/quote:
+    get:
+      tags:
+        - Commodities
+      summary: Get latest commodity quote
+      description: Supported commodity values are `gold`, `GC=F`, `oil-wti`, `CL=F`, `oil-brent`, and `BZ=F`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CommodityPath"
+      responses:
+        "200":
+          description: Latest commodity quote.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuoteResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+  /api/v1/private/stocks/tickers:
+    get:
+      tags: [Stocks]
+      summary: Search active stock tickers
+      description: Requires `market.stock.read`. Performs a case-insensitive ticker prefix search. Exact ticker matches are returned first, followed by ticker alphabetically. Only active stocks are included.
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: q
+          in: query
+          description: Optional ticker prefix. An empty value returns the first active tickers alphabetically.
+          schema: {type: string, example: BB}
+        - name: limit
+          in: query
+          description: Maximum number of results. Values above 50 are capped at 50.
+          schema: {type: integer, minimum: 1, maximum: 50, default: 10}
+      responses:
+        "200":
+          description: Matching active stock tickers.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/StockTickerListResponse"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /api/v1/private/stocks/{ticker}/kline:
+    get:
+      tags:
+        - Stocks
+      summary: Get daily stock klines
+      description: Reads cached daily Yahoo Finance candles from PostgreSQL. If no rows exist for the requested range, fetches Yahoo, persists the result, and returns the persisted rows. Jakarta tickers are translated to Yahoo's `.JK` symbol form, for example `BBCA` becomes `BBCA.JK`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ticker
+          in: path
+          required: true
+          schema:
+            type: string
+            example: BBCA
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Daily Yahoo Finance stock kline data.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockKlineListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+  /api/v1/private/stocks/{ticker}/quote:
+    get:
+      tags: [Stocks]
+      summary: Get a stock quote
+      description: Fetches the current quote from Yahoo Finance. Jakarta tickers are translated to Yahoo's `.JK` symbol form.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StockTickerPath"
+      responses:
+        "200":
+          description: Current Yahoo Finance stock quote.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/QuoteResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "502": {$ref: "#/components/responses/BadGateway"}
+  /api/v1/private/stocks/{ticker}/fundamentals:
+    get:
+      tags: [Stocks]
+      summary: Get stored Stockbit fundamentals
+      description: Requires `market.stock.read`. Reads the latest Stockbit snapshot written directly to PostgreSQL by the scraper. This API never starts or calls the scraper.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StockTickerPath"
+      responses:
+        "200":
+          description: Latest stored Stockbit fundamentals snapshot.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/StockFundamentalsResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /api/v1/private/admin/stocks:
+    get:
+      tags: [Stocks]
+      summary: List configured stocks
+      description: Requires `stock.manage`. Includes active and deactivated stocks used by market-data jobs.
+      security: [{bearerAuth: []}]
+      responses:
+        "200":
+          description: Configured stocks.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockListResponse"
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      tags:
+        - Stocks
+      summary: Add a configured stock
+      description: Requires `stock.manage`. Adds a ticker that can be collected by the Stockbit scraper.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStockRequest"
+      responses:
+        "201":
+          description: Stock created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/private/admin/stocks/{ticker}:
+    get:
+      tags: [Stocks]
+      summary: Get a configured stock
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StockTickerPath"
+      responses:
+        "200":
+          description: Stock configuration.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/StockResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    put:
+      tags: [Stocks]
+      summary: Update a stock name
+      description: Requires `stock.manage`.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StockTickerPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/UpdateStockRequest"}
+      responses:
+        "200":
+          description: Stock name updated.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/StockResponse"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/private/admin/stocks/{ticker}/status:
+    put:
+      tags: [Stocks]
+      summary: Activate or deactivate a stock
+      description: Requires `stock.manage`. Deactivation preserves the stock and market-data history and excludes it from future Stockbit scrape runs.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StockTickerPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/UpdateStockStatusRequest"}
+      responses:
+        "200":
+          description: Stock status updated.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/StockResponse"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/private/commodities/{commodity}/kline:
+    get:
+      tags:
+        - Commodities
+      summary: Get daily commodity klines
+      description: Supported commodity values are `gold`, `GC=F`, `oil-wti`, `CL=F`, `oil-brent`, and `BZ=F`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CommodityPath"
+        - name: range
+          in: query
+          required: false
+          description: Historical range. Supports values like `7d`, `1mo`, `3mo`, `1y`, or `ytd`.
+          schema:
+            type: string
+            default: 1mo
+            example: 1mo
+      responses:
+        "200":
+          description: Daily commodity kline data.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KlineListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+  /api/v1/private/portfolios:
+    get:
+      tags:
+        - Portfolios
+      summary: List portfolios
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User portfolios.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags:
+        - Portfolios
+      summary: Create portfolio
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortfolioRequest"
+      responses:
+        "201":
+          description: Portfolio created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolios/{portfolio_id}:
+    get:
+      tags:
+        - Portfolios
+      summary: Get portfolio
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      responses:
+        "200":
+          description: Portfolio detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      tags:
+        - Portfolios
+      summary: Update portfolio
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortfolioRequest"
+      responses:
+        "200":
+          description: Portfolio updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags:
+        - Portfolios
+      summary: Delete portfolio and move its data
+      description: The main portfolio created during register cannot be deleted. Deleting another portfolio requires `target_portfolio_id`; all accounts, holdings, and transactions are moved to that target portfolio before deletion.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeletePortfolioRequest"
+      responses:
+        "204":
+          description: Portfolio deleted and data moved.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolio/{portfolio_id}/cash:
+    get:
+      tags:
+        - Cash
+      summary: Get cash summary
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      responses:
+        "200":
+          description: Portfolio cash summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioCashResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags:
+        - Cash
+      summary: Add cash
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddCashRequest"
+      responses:
+        "201":
+          description: Cash added and portfolio cash summary returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioCashResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolio/{portfolio_id}/cash/snapshots:
+    get:
+      tags:
+        - Cash
+      summary: List cash snapshots
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+        - name: from
+          in: query
+          required: false
+          description: Start date in `YYYY-MM-DD` format. Defaults to the first day of the current year.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: End date in `YYYY-MM-DD` format. Defaults to today.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Portfolio cash snapshots.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashSnapshotListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolio/{portfolio_id}/cash/transactions:
+    get:
+      tags:
+        - Cash
+      summary: List cash transactions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      responses:
+        "200":
+          description: Portfolio cash transactions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashTransactionListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags:
+        - Cash
+      summary: Create cash transaction
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CashTransactionRequest"
+      responses:
+        "201":
+          description: Cash transaction created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashTransactionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolio/{portfolio_id}/cash/transactions/{transaction_id}:
+    get:
+      tags:
+        - Cash
+      summary: Get cash transaction
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+        - $ref: "#/components/parameters/TransactionIDPath"
+      responses:
+        "200":
+          description: Portfolio cash transaction.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashTransactionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      tags:
+        - Cash
+      summary: Update cash transaction
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+        - $ref: "#/components/parameters/TransactionIDPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CashTransactionRequest"
+      responses:
+        "200":
+          description: Portfolio cash transaction updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashTransactionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags:
+        - Cash
+      summary: Delete cash transaction
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+        - $ref: "#/components/parameters/TransactionIDPath"
+      responses:
+        "204":
+          description: Cash transaction deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolio/{portfolio_id}/bonds:
+    get:
+      tags:
+        - Bond
+      summary: List bond holdings
+      description: Requires `portfolio.bond.read`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      responses:
+        "200":
+          description: Portfolio bond holdings grouped by bond asset.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BondListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags:
+        - Bond
+      summary: Create or buy a bond
+      description: Requires `portfolio.bond.create`. Reuses an existing bond asset with the same symbol, upserts term metadata, creates an initial `buy` transaction, and optionally stores a portfolio-owned manual valuation. This changes the inputs used to derive coupon display fields on bond read responses, including current principal, coupon rate, coupon frequency, issue date, and maturity date.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BondRequest"
+      responses:
+        "201":
+          description: Bond created or bought.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BondResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolio/{portfolio_id}/bonds/snapshots:
+    get:
+      tags:
+        - Bond
+      summary: List bond snapshots
+      description: Requires `portfolio.bond.read`. Defaults to year-to-date when `from` and `to` are omitted.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+        - name: from
+          in: query
+          required: false
+          description: Start date in `YYYY-MM-DD` format. Defaults to the first day of the current year.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: End date in `YYYY-MM-DD` format. Defaults to today.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Portfolio bond snapshots.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BondSnapshotListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolio/{portfolio_id}/bonds/transactions:
+    get:
+      tags:
+        - Bond
+      summary: List bond transactions
+      description: Requires `portfolio.bond.read`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      responses:
+        "200":
+          description: Portfolio bond transactions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BondTransactionListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags:
+        - Bond
+      summary: Create bond transaction
+      description: Requires `portfolio.bond.create`. `buy`, `sell`, and `maturity` rebuild the current principal holding, which changes derived coupon display amounts on bond read responses. `coupon` records actual coupon cash received but does not advance or override `next_coupon_date`; expected coupon dates are derived from the bond term calendar. `sell` and `maturity` derive missing cost basis from the current holding average cost.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BondTransactionRequest"
+            example:
+              account_id: 2f37f7e3-9d2d-4f7f-8d7d-2e3b9f6c7a81
+              asset_id: 2ec27c54-09e5-48eb-a54a-3f635fbecf34
+              transaction_type: buy
+              principal_amount: 1000000
+              price: 1.002
+              gross_amount: 1002000
+              cost_amount: 1002000
+              accrued_coupon_amount: 21412
+              fee_amount: 0
+              tax_amount: 0
+              net_amount: 1023412
+      responses:
+        "201":
+          description: Bond transaction created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BondTransactionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolio/{portfolio_id}/bonds/transactions/{transaction_id}:
+    get:
+      tags:
+        - Bond
+      summary: Get bond transaction
+      description: Requires `portfolio.bond.read`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+        - $ref: "#/components/parameters/TransactionIDPath"
+      responses:
+        "200":
+          description: Portfolio bond transaction.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BondTransactionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      tags:
+        - Bond
+      summary: Update bond transaction
+      description: Requires `portfolio.bond.update`. Updating a `buy`, `sell`, or `maturity` transaction rebuilds the current principal holding, which can change derived coupon display amounts on bond read responses. Updating a `coupon` transaction records actual received cash only and does not advance or override the expected coupon schedule.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+        - $ref: "#/components/parameters/TransactionIDPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BondTransactionRequest"
+      responses:
+        "200":
+          description: Bond transaction updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BondTransactionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags:
+        - Bond
+      summary: Delete bond transaction
+      description: Requires `portfolio.bond.delete`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+        - $ref: "#/components/parameters/TransactionIDPath"
+      responses:
+        "204":
+          description: Bond transaction deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolio/{portfolio_id}/bonds/{asset_id}:
+    get:
+      tags:
+        - Bond
+      summary: Get bond holding
+      description: Requires `portfolio.bond.read`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+        - $ref: "#/components/parameters/AssetIDPath"
+      responses:
+        "200":
+          description: Portfolio bond holding.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BondResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      tags:
+        - Bond
+      summary: Update bond asset and term
+      description: Requires `portfolio.bond.update`. Updates the shared bond asset and its term metadata after verifying this portfolio holds the bond. Changes to annual_rate, coupon_frequency, issue_date, or maturity_date change the derived coupon display fields returned by bond list/get endpoints.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+        - $ref: "#/components/parameters/AssetIDPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BondAssetRequest"
+      responses:
+        "200":
+          description: Bond asset and term updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BondResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolio/{portfolio_id}/bonds/{asset_id}/valuation:
+    post:
+      tags:
+        - Bond
+      summary: Adjust bond holding valuation
+      description: Requires `portfolio.bond.update`. Stores a portfolio-owned manual market value for one account holding; it does not update global asset valuations.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+        - $ref: "#/components/parameters/AssetIDPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BondValuationRequest"
+      responses:
+        "200":
+          description: Bond valuation adjusted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BondResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolio/{portfolio_id}/commodities/gold:
+    get:
+      tags:
+        - Portfolio Commodities
+      summary: Get portfolio gold holding
+      description: Requires `portfolio.commodity.read`. Returns gold quantities in grams with an IDR moving-average cost basis, including fully sold accounts that still have realized PnL.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      responses:
+        "200":
+          description: Aggregate and per-account gold holdings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldHoldingResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags:
+        - Portfolio Commodities
+      summary: Create or buy gold
+      description: Requires `portfolio.commodity.create`. Creates a portfolio gold account and its initial `buy` transaction atomically. When `account_id` is supplied, the buy is added to that existing portfolio account instead. Gold uses an IDR moving-average cost basis.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoldRequest"
+            example:
+              account_name: Physical Gold
+              quantity_grams: 5
+              price: 1750000
+              fee_amount: 25000
+              tax_amount: 5000
+              transaction_date: "2026-06-19T10:30:00+08:00"
+              notes: Initial gold purchase
+      responses:
+        "201":
+          description: Gold account and initial buy created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldHoldingResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolio/{portfolio_id}/commodities/gold/transactions:
+    get:
+      tags:
+        - Portfolio Commodities
+      summary: List gold transactions
+      description: Requires `portfolio.commodity.read`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      responses:
+        "200":
+          description: Gold transactions ordered newest first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldTransactionListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags:
+        - Portfolio Commodities
+      summary: Create gold transaction
+      description: Requires `portfolio.commodity.create`. Buys add gross amount, fees, and taxes to cost basis. Sells remove cost using the holding's moving-average IDR cost per gram. A chronologically invalid sale is rejected.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoldTransactionRequest"
+      responses:
+        "201":
+          description: Gold transaction created and holding rebuilt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldTransactionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolio/{portfolio_id}/commodities/gold/transactions/{transaction_id}:
+    get:
+      tags:
+        - Portfolio Commodities
+      summary: Get gold transaction
+      description: Requires `portfolio.commodity.read`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+        - $ref: "#/components/parameters/TransactionIDPath"
+      responses:
+        "200":
+          description: Gold transaction.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldTransactionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      tags:
+        - Portfolio Commodities
+      summary: Update gold transaction
+      description: Requires `portfolio.commodity.update`. Replays the affected account's transactions chronologically and rejects the update if any sale would exceed the grams then available.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+        - $ref: "#/components/parameters/TransactionIDPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoldTransactionRequest"
+      responses:
+        "200":
+          description: Gold transaction updated and holding rebuilt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldTransactionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags:
+        - Portfolio Commodities
+      summary: Delete gold transaction
+      description: Requires `portfolio.commodity.delete`. Replays remaining transactions and rejects deletion when it would create a historical oversell.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PortfolioIDPath"
+        - $ref: "#/components/parameters/TransactionIDPath"
+      responses:
+        "204":
+          description: Gold transaction deleted and holding rebuilt.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/admin/master-data:
+    get:
+      tags:
+        - Master Data
+      summary: List master data values
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current USD/IDR and BI rate values.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MasterDataListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/admin/master-data/{key}:
+    put:
+      tags:
+        - Master Data
+      summary: Update a master data value
+      description: Supported keys are `usd_idr_rate` and `bi_rate`. Values must be greater than zero.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - usd_idr_rate
+              - bi_rate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMasterDataRequest"
+      responses:
+        "200":
+          description: Master data value updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MasterDataUpdateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    StockTickerPath:
+      name: ticker
+      in: path
+      required: true
+      schema: {type: string, example: BBCA}
+    CommodityPath:
+      name: commodity
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+          - gold
+          - GC=F
+          - oil-wti
+          - CL=F
+          - oil-brent
+          - BZ=F
+      example: gold
+    PortfolioIDPath:
+      name: portfolio_id
+      in: path
+      required: true
+      schema:
+        type: string
+      example: 9f52ca07-4d30-46c8-8c30-62db4f51b820
+    AssetIDPath:
+      name: asset_id
+      in: path
+      required: true
+      schema:
+        type: string
+      example: c8e229e5-6fcb-46a7-82d2-9b6dbef9ff9d
+    TransactionIDPath:
+      name: transaction_id
+      in: path
+      required: true
+      schema:
+        type: string
+      example: 3b1c8fc7-57c4-4b1c-8425-3b9f1c590a14
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Authentication failed or bearer token is missing.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Authenticated user is not allowed to access this resource.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Request conflicts with current resource state.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    BadGateway:
+      description: Upstream market data provider failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalServerError:
+      description: Internal server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    StatusOK:
+      type: string
+      enum:
+        - ok
+    StatusNOK:
+      type: string
+      enum:
+        - nok
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+    MasterData:
+      type: object
+      required:
+        - key
+        - value
+        - updated_at
+      properties:
+        key:
+          type: string
+          enum:
+            - usd_idr_rate
+            - bi_rate
+        value:
+          type: number
+          format: double
+        updated_at:
+          type: string
+          format: date-time
+    MasterDataListResponse:
+      type: object
+      required:
+        - status
+        - data
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MasterData"
+    UpdateMasterDataRequest:
+      type: object
+      required:
+        - value
+      properties:
+        value:
+          type: number
+          format: double
+          exclusiveMinimum: true
+          minimum: 0
+          example: 16250
+    MasterDataUpdateResponse:
+      allOf:
+        - $ref: "#/components/schemas/MasterData"
+        - type: object
+          required:
+            - status
+          properties:
+            status:
+              $ref: "#/components/schemas/StatusOK"
+    ErrorResponse:
+      type: object
+      required:
+        - status
+        - error
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusNOK"
+        error:
+          oneOf:
+            - type: string
+            - type: object
+          example: invalid request body
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          example: secret123
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          example: secret123
+    RegisterResponse:
+      type: object
+      required:
+        - status
+        - user
+        - portfolio
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        user:
+          $ref: "#/components/schemas/UserBrief"
+        portfolio:
+          $ref: "#/components/schemas/PortfolioBrief"
+    LoginResponse:
+      type: object
+      required:
+        - status
+        - token
+        - token_type
+        - expires_at
+        - user
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_at:
+          type: string
+          format: date-time
+        user:
+          $ref: "#/components/schemas/UserBrief"
+    UserBrief:
+      type: object
+      required:
+        - user_id
+        - email
+        - role_id
+        - status
+        - rules
+        - created_at
+      properties:
+        user_id:
+          type: string
+        email:
+          type: string
+          format: email
+        role_id:
+          type: integer
+        status:
+          type: boolean
+        rules:
+          type: array
+          items:
+            type: string
+          example:
+            - market.gold.read
+        created_at:
+          type: string
+          format: date-time
+    PortfolioBrief:
+      type: object
+      required:
+        - portfolio_id
+        - name
+        - base_currency_code
+        - is_main
+        - created_at
+      properties:
+        portfolio_id:
+          type: string
+        name:
+          type: string
+          example: Main Portfolio
+        base_currency_code:
+          type: string
+          example: IDR
+        is_main:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+    PortfolioRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: Growth
+    DeletePortfolioRequest:
+      type: object
+      required:
+        - target_portfolio_id
+      properties:
+        target_portfolio_id:
+          type: string
+          example: 3b1c8fc7-57c4-4b1c-8425-3b9f1c590a14
+    PortfolioResponse:
+      type: object
+      required:
+        - status
+        - portfolio_id
+        - user_id
+        - name
+        - base_currency_code
+        - is_main
+        - created_at
+        - updated_at
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        portfolio_id:
+          type: string
+        user_id:
+          type: string
+        name:
+          type: string
+          example: Growth
+        base_currency_code:
+          type: string
+          example: IDR
+        is_main:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    BondRequest:
+      allOf:
+        - $ref: "#/components/schemas/BondAssetRequest"
+        - type: object
+          required:
+            - symbol
+            - name
+            - principal_amount
+          properties:
+            account_id:
+              type: string
+              description: Existing portfolio account ID. Omit when creating or selecting by account_name.
+            account_name:
+              type: string
+              description: Manual bond account name. Defaults to `Bonds` when account_id is empty.
+              example: Manual Bonds
+            principal_amount:
+              type: number
+              format: double
+              minimum: 0
+              exclusiveMinimum: true
+              description: Bond principal or nominal amount currently being bought.
+              example: 10000000
+            cost_amount:
+              type: number
+              format: double
+              minimum: 0
+              description: Capital basis for the buy. Defaults to principal_amount.
+              example: 10000000
+            accrued_coupon_amount:
+              type: number
+              format: double
+              minimum: 0
+              description: Accrued coupon paid with the initial buy. Tracked separately from cost_amount and defaults to 0.
+              example: 21412
+            fee_amount:
+              type: number
+              format: double
+              minimum: 0
+              description: Fee paid with the initial buy. Defaults to 0.
+              example: 0
+            market_value:
+              type: number
+              format: double
+              minimum: 0
+              description: Optional initial manual holding market value.
+              example: 9800000
+            transaction_date:
+              type: string
+              format: date-time
+              description: RFC3339 timestamp. Defaults to current UTC time.
+            notes:
+              type: string
+    BondAssetRequest:
+      type: object
+      required:
+        - symbol
+        - name
+      properties:
+        symbol:
+          type: string
+          example: ORI025
+        name:
+          type: string
+          example: ORI025
+        issue_date:
+          type: string
+          format: date
+          example: 2026-01-15
+        maturity_date:
+          type: string
+          format: date
+          example: 2029-01-15
+        annual_rate:
+          type: number
+          format: double
+          minimum: 0
+          example: 6.25
+        coupon_frequency:
+          type: string
+          enum:
+            - monthly
+            - quarterly
+            - semiannual
+            - annual
+          example: semiannual
+        principal_value:
+          type: number
+          format: double
+          minimum: 0
+          example: 10000000
+    BondValuationRequest:
+      type: object
+      required:
+        - account_id
+      properties:
+        account_id:
+          type: string
+          description: Portfolio account ID for the specific bond holding.
+        valuation_date:
+          type: string
+          format: date
+          description: Valuation date. Defaults to current UTC date.
+        price:
+          type: number
+          format: double
+          minimum: 0
+          description: Market value per 1 principal unit. Either price or market_value is required.
+          example: 0.98
+        market_value:
+          type: number
+          format: double
+          minimum: 0
+          description: Total holding market value. Either price or market_value is required.
+          example: 9800000
+        notes:
+          type: string
+          example: Manual readjustment
+    BondTransactionRequest:
+      type: object
+      required:
+        - account_id
+        - asset_id
+      properties:
+        account_id:
+          type: string
+          description: Existing portfolio account ID. Omit only when account_name is provided.
+        account_name:
+          type: string
+          description: Manual bond account name used when account_id is omitted.
+          example: Manual Bonds
+        asset_id:
+          type: string
+          description: Existing bond asset ID.
+        transaction_type:
+          type: string
+          default: buy
+          enum:
+            - buy
+            - sell
+            - coupon
+            - fee
+            - tax
+            - maturity
+        principal_amount:
+          type: number
+          format: double
+          minimum: 0
+          description: Required and greater than zero for buy, sell, and maturity.
+          example: 10000000
+        price:
+          type: number
+          format: double
+          minimum: 0
+          description: Price per 1 principal unit. Defaults to 1 when principal_amount is present.
+          example: 1
+        gross_amount:
+          type: number
+          format: double
+          minimum: 0
+          description: Defaults to principal_amount multiplied by price.
+          example: 10000000
+        cost_amount:
+          type: number
+          format: double
+          minimum: 0
+          description: Clean purchase cost / capital basis. Buy defaults to gross amount only. Sell and maturity derive missing cost from current average cost.
+          example: 1002000
+        accrued_coupon_amount:
+          type: number
+          format: double
+          minimum: 0
+          description: Accrued coupon paid on buy or possibly sell transactions. Defaults to 0 and is tracked separately from cost_amount, fee_amount, and tax_amount.
+          example: 21412
+        fee_amount:
+          type: number
+          format: double
+          minimum: 0
+          example: 0
+        tax_amount:
+          type: number
+          format: double
+          minimum: 0
+          example: 0
+        net_amount:
+          type: number
+          format: double
+          minimum: 0
+          description: Defaults to gross plus accrued_coupon_amount, fees, and taxes.
+          example: 1023412
+        transaction_date:
+          type: string
+          format: date-time
+          description: RFC3339 timestamp. Defaults to current UTC time for creates and existing timestamp for updates.
+        notes:
+          type: string
+    BondListResponse:
+      type: object
+      required:
+        - status
+        - data
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Bond"
+    BondResponse:
+      allOf:
+        - type: object
+          required:
+            - status
+          properties:
+            status:
+              $ref: "#/components/schemas/StatusOK"
+        - $ref: "#/components/schemas/Bond"
+    Bond:
+      type: object
+      required:
+        - portfolio_id
+        - asset_id
+        - symbol
+        - name
+        - principal_amount
+        - total_cost
+        - market_value
+        - unrealized_pnl
+        - realized_pnl
+        - total_pnl
+        - total_pnl_percent
+        - currency_code
+        - term
+        - maturity_date
+        - next_coupon_date
+        - coupon_amount_per_period
+        - coupon_payments_per_year
+        - is_next_coupon_at_maturity
+        - principal_returned_at_maturity
+        - accounts
+        - updated_at
+      properties:
+        portfolio_id:
+          type: string
+        asset_id:
+          type: string
+        account_id:
+          type: string
+          description: Present when the bond is held in exactly one account.
+        account_name:
+          type: string
+          description: Present when the bond is held in exactly one account.
+        symbol:
+          type: string
+          example: ORI025
+        name:
+          type: string
+          example: ORI025
+        principal_amount:
+          type: number
+          format: double
+          description: Total principal currently held across accounts.
+        total_cost:
+          type: number
+          format: double
+          description: Current capital basis across accounts.
+        market_value:
+          type: number
+          format: double
+          description: Latest manual market value across accounts, or principal amount when no valuation exists.
+        unrealized_pnl:
+          type: number
+          format: double
+        realized_pnl:
+          type: number
+          format: double
+          description: Currently zero for bond summary responses.
+        total_pnl:
+          type: number
+          format: double
+        total_pnl_percent:
+          type: number
+          format: double
+        currency_code:
+          type: string
+          example: IDR
+        term:
+          $ref: "#/components/schemas/BondTerm"
+        maturity_date:
+          type: string
+          format: date
+          description: Bond maturity date mirrored from term for table display.
+          example: 2029-01-15
+        next_coupon_date:
+          type: string
+          format: date
+          nullable: true
+          description: Derived at read time from issue_date, maturity_date, coupon_frequency, and the current UTC date. Null when no future coupon remains. It is not updated by recording a `coupon` transaction.
+          example: 2026-07-15
+        coupon_amount_per_period:
+          type: number
+          format: double
+          description: Derived at read time from current principal_amount, annual_rate, and coupon_frequency. `buy`, `sell`, and `maturity` transactions can change this value by changing current principal.
+          example: 250000
+        coupon_payments_per_year:
+          type: integer
+          description: Derived from coupon_frequency. monthly = 12, quarterly = 4, semiannual = 2, annual = 1.
+          example: 2
+        is_next_coupon_at_maturity:
+          type: boolean
+          description: True when the next coupon date is also the maturity date.
+          example: false
+        principal_returned_at_maturity:
+          type: number
+          format: double
+          description: Principal expected to be returned with the next payment when it is at maturity; otherwise zero.
+          example: 0
+        latest_valuation:
+          $ref: "#/components/schemas/BondValuation"
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/BondAccount"
+        updated_at:
+          type: string
+          format: date-time
+    BondAccount:
+      type: object
+      required:
+        - account_id
+        - account_name
+        - principal_amount
+        - total_cost
+        - market_value
+        - unrealized_pnl
+        - total_pnl
+        - total_pnl_percent
+        - maturity_date
+        - next_coupon_date
+        - coupon_amount_per_period
+        - coupon_payments_per_year
+        - is_next_coupon_at_maturity
+        - principal_returned_at_maturity
+        - updated_at
+      properties:
+        account_id:
+          type: string
+        account_name:
+          type: string
+        principal_amount:
+          type: number
+          format: double
+        total_cost:
+          type: number
+          format: double
+        market_value:
+          type: number
+          format: double
+        unrealized_pnl:
+          type: number
+          format: double
+        total_pnl:
+          type: number
+          format: double
+        total_pnl_percent:
+          type: number
+          format: double
+        maturity_date:
+          type: string
+          format: date
+          description: Bond maturity date mirrored from the asset term for account-row display.
+        next_coupon_date:
+          type: string
+          format: date
+          nullable: true
+          description: Derived at read time from issue_date, maturity_date, coupon_frequency, and the current UTC date for this account holding. It is not updated by recording a `coupon` transaction.
+        coupon_amount_per_period:
+          type: number
+          format: double
+          description: Derived at read time from this account principal_amount, annual_rate, and coupon_frequency. `buy`, `sell`, and `maturity` transactions can change this value by changing current principal.
+        coupon_payments_per_year:
+          type: integer
+          description: Derived from coupon_frequency. monthly = 12, quarterly = 4, semiannual = 2, annual = 1.
+        is_next_coupon_at_maturity:
+          type: boolean
+          description: True when the next coupon date is also the maturity date.
+        principal_returned_at_maturity:
+          type: number
+          format: double
+          description: Account principal expected to be returned with the next payment when it is at maturity; otherwise zero.
+        latest_valuation:
+          $ref: "#/components/schemas/BondValuation"
+        updated_at:
+          type: string
+          format: date-time
+    BondTerm:
+      type: object
+      properties:
+        issue_date:
+          type: string
+          format: date
+        maturity_date:
+          type: string
+          format: date
+        annual_rate:
+          type: number
+          format: double
+        coupon_frequency:
+          type: string
+          enum:
+            - monthly
+            - quarterly
+            - semiannual
+            - annual
+        principal_value:
+          type: number
+          format: double
+    BondValuation:
+      type: object
+      required:
+        - valuation_date
+        - price
+        - market_value
+        - source
+        - notes
+      properties:
+        valuation_date:
+          type: string
+          format: date
+        price:
+          type: number
+          format: double
+        market_value:
+          type: number
+          format: double
+        source:
+          type: string
+          example: manual
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    BondTransactionListResponse:
+      type: object
+      required:
+        - status
+        - data
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/BondTransaction"
+    BondTransactionResponse:
+      allOf:
+        - type: object
+          required:
+            - status
+          properties:
+            status:
+              $ref: "#/components/schemas/StatusOK"
+        - $ref: "#/components/schemas/BondTransaction"
+    BondTransaction:
+      type: object
+      required:
+        - transaction_id
+        - portfolio_id
+        - account_id
+        - account_name
+        - asset_id
+        - symbol
+        - name
+        - transaction_type
+        - transaction_date
+        - principal_amount
+        - price
+        - gross_amount
+        - cost_amount
+        - accrued_coupon_amount
+        - fee_amount
+        - tax_amount
+        - net_amount
+        - currency_code
+        - notes
+        - created_at
+        - updated_at
+      properties:
+        transaction_id:
+          type: string
+        portfolio_id:
+          type: string
+        account_id:
+          type: string
+        account_name:
+          type: string
+        asset_id:
+          type: string
+        symbol:
+          type: string
+        name:
+          type: string
+        transaction_type:
+          type: string
+          enum:
+            - buy
+            - sell
+            - coupon
+            - fee
+            - tax
+            - maturity
+        transaction_date:
+          type: string
+          format: date-time
+        principal_amount:
+          type: number
+          format: double
+        price:
+          type: number
+          format: double
+        gross_amount:
+          type: number
+          format: double
+        cost_amount:
+          type: number
+          format: double
+        accrued_coupon_amount:
+          type: number
+          format: double
+        fee_amount:
+          type: number
+          format: double
+        tax_amount:
+          type: number
+          format: double
+        net_amount:
+          type: number
+          format: double
+        currency_code:
+          type: string
+          example: IDR
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    BondSnapshotListResponse:
+      type: object
+      required:
+        - status
+        - data
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/BondSnapshot"
+    BondSnapshot:
+      allOf:
+        - $ref: "#/components/schemas/CashSnapshot"
+    PortfolioItem:
+      type: object
+      required:
+        - portfolio_id
+        - user_id
+        - name
+        - base_currency_code
+        - is_main
+        - created_at
+        - updated_at
+      properties:
+        portfolio_id:
+          type: string
+        user_id:
+          type: string
+        name:
+          type: string
+          example: Growth
+        base_currency_code:
+          type: string
+          example: IDR
+        is_main:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PortfolioListResponse:
+      type: object
+      required:
+        - status
+        - data
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioItem"
+    QuoteResponse:
+      type: object
+      required:
+        - status
+        - symbol
+        - open
+        - high
+        - low
+        - close
+        - volume
+        - source
+        - fetched_at
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        symbol:
+          type: string
+          example: GC=F
+        open:
+          type: number
+          format: double
+        high:
+          type: number
+          format: double
+        low:
+          type: number
+          format: double
+        close:
+          type: number
+          format: double
+        volume:
+          type: integer
+          format: int64
+        source:
+          $ref: "#/components/schemas/MarketDataSource"
+        fetched_at:
+          type: string
+          format: date-time
+    KlineListResponse:
+      type: object
+      required:
+        - status
+        - data
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Kline"
+    StockKlineListResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockKline"
+    StockFundamentalsResponse:
+      type: object
+      required: [status, fundamentals]
+      properties:
+        status: {$ref: "#/components/schemas/StatusOK"}
+        fundamentals: {$ref: "#/components/schemas/StockFundamentals"}
+    StockFundamentals:
+      type: object
+      required: [ticker, source, payload, scraped_at, updated_at]
+      properties:
+        ticker: {type: string, example: BBCA}
+        source: {type: string, enum: [stockbit]}
+        payload: {$ref: "#/components/schemas/StockbitFundamentalsPayload"}
+        scraped_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    StockbitFundamentalsPayload:
+      type: object
+      required: [currentValuation, perShare, solvency, managementEffectiveness, profitability, growth, dividend, marketRank, incomeStatement, balanceSheet, cashFlowStatement, dividendHistory, marketOverview]
+      properties:
+        currentValuation: {$ref: "#/components/schemas/StockbitMetricMap"}
+        perShare: {$ref: "#/components/schemas/StockbitMetricMap"}
+        solvency: {$ref: "#/components/schemas/StockbitMetricMap"}
+        managementEffectiveness: {$ref: "#/components/schemas/StockbitMetricMap"}
+        profitability: {$ref: "#/components/schemas/StockbitMetricMap"}
+        growth: {$ref: "#/components/schemas/StockbitMetricMap"}
+        dividend: {$ref: "#/components/schemas/StockbitMetricMap"}
+        marketRank: {$ref: "#/components/schemas/StockbitMetricMap"}
+        incomeStatement: {$ref: "#/components/schemas/StockbitMetricMap"}
+        balanceSheet: {$ref: "#/components/schemas/StockbitMetricMap"}
+        cashFlowStatement: {$ref: "#/components/schemas/StockbitMetricMap"}
+        dividendHistory:
+          type: array
+          items: {$ref: "#/components/schemas/StockbitDividendHistory"}
+        marketOverview: {$ref: "#/components/schemas/StockbitMetricMap"}
+    StockbitMetricMap:
+      type: object
+      additionalProperties:
+        $ref: "#/components/schemas/StockbitMetric"
+    StockbitMetric:
+      type: object
+      required: [label, value]
+      properties:
+        label: {type: string, example: Current PE Ratio (TTM)}
+        value: {type: string, example: "13.48"}
+    StockbitDividendHistory:
+      type: object
+      required: [period, dividend, exDate, payDate]
+      properties:
+        period: {type: string, example: FY 2025}
+        dividend: {type: string, example: "250.00"}
+        exDate: {type: string, example: 17 Jun 26}
+        payDate: {type: string, example: 09 Jul 26}
+    FreeformObject:
+      type: object
+      additionalProperties: true
+    CreateStockRequest:
+      type: object
+      required: [ticker, name]
+      properties:
+        ticker: {type: string, example: BBCA}
+        name: {type: string, example: Bank Central Asia Tbk}
+    StockResponse:
+      type: object
+      required: [status, ticker, name, active, created_at, updated_at]
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        ticker: {type: string, example: BBCA}
+        name: {type: string, example: Bank Central Asia Tbk}
+        active: {type: boolean, example: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    StockListResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status: {$ref: "#/components/schemas/StatusOK"}
+        data:
+          type: array
+          items: {$ref: "#/components/schemas/StockItem"}
+    StockTickerListResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status: {$ref: "#/components/schemas/StatusOK"}
+        data:
+          type: array
+          items: {$ref: "#/components/schemas/StockTickerItem"}
+    StockTickerItem:
+      type: object
+      required: [ticker, name]
+      properties:
+        ticker: {type: string, example: BBCA}
+        name: {type: string, example: Bank Central Asia Tbk}
+    StockItem:
+      type: object
+      required: [ticker, name, active, created_at, updated_at]
+      properties:
+        ticker: {type: string, example: BBCA}
+        name: {type: string, example: Bank Central Asia Tbk}
+        active: {type: boolean, example: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    UpdateStockRequest:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, example: Bank Central Asia Tbk}
+    UpdateStockStatusRequest:
+      type: object
+      required: [active]
+      properties:
+        active: {type: boolean, example: false}
+    StockKline:
+      type: object
+      required: [symbol, interval, open_time, open, high, low, close, volume, source, fetched_at]
+      properties:
+        symbol: {type: string, example: BBCA.JK}
+        interval: {type: string, enum: [1d]}
+        open_time: {type: string, format: date-time}
+        open: {type: number, format: double}
+        high: {type: number, format: double}
+        low: {type: number, format: double}
+        close: {type: number, format: double}
+        volume: {type: integer, format: int64}
+        source: {type: string, enum: [yahoo_finance]}
+        fetched_at: {type: string, format: date-time}
+    Kline:
+      type: object
+      required:
+        - symbol
+        - interval
+        - open_time
+        - open
+        - high
+        - low
+        - close
+        - volume
+        - source
+        - fetched_at
+      properties:
+        symbol:
+          type: string
+          example: GC=F
+        interval:
+          type: string
+          example: 1d
+        open_time:
+          type: string
+          format: date-time
+        open:
+          type: number
+          format: double
+        high:
+          type: number
+          format: double
+        low:
+          type: number
+          format: double
+        close:
+          type: number
+          format: double
+        volume:
+          type: integer
+          format: int64
+        source:
+          $ref: "#/components/schemas/MarketDataSource"
+        fetched_at:
+          type: string
+          format: date-time
+    MarketDataSource:
+      type: string
+      enum:
+        - yahoo_finance
+    AddCashRequest:
+      type: object
+      required:
+        - amount
+      properties:
+        account_id:
+          type: string
+          description: Existing cash account ID from a previous cash response. Omit this when creating or updating by account_name. If both account_id and account_name are empty, the API defaults to `Cash`.
+        account_name:
+          type: string
+          description: Cash account name.
+          example: Cash
+        amount:
+          type: number
+          format: double
+          example: 1000000
+        notes:
+          type: string
+    CashTransactionRequest:
+      type: object
+      required:
+        - amount
+      properties:
+        account_id:
+          type: string
+          description: Existing cash account ID from a previous cash response. Omit this when creating or updating by account_name.
+        account_name:
+          type: string
+          description: Cash account name.
+          example: Cash
+        transaction_type:
+          type: string
+          default: deposit
+          enum:
+            - deposit
+            - withdrawal
+            - interest
+            - dividend
+            - coupon
+            - fee
+            - tax
+            - maturity
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          exclusiveMinimum: true
+          description: Positive cash movement amount. The transaction_type determines whether this adds or removes cash.
+          example: 1000000
+        cost_amount:
+          type: number
+          format: double
+          minimum: 0
+          description: Optional positive capital basis for this cash movement. Defaults to amount for deposit, withdrawal, and maturity; defaults to 0 for interest, dividend, coupon, fee, and tax.
+          example: 1000000
+        transaction_date:
+          type: string
+          format: date-time
+          description: RFC3339 timestamp. Defaults to repository behavior when omitted.
+        notes:
+          type: string
+    PortfolioCashResponse:
+      type: object
+      required:
+        - status
+        - portfolio_id
+        - asset_id
+        - symbol
+        - name
+        - total_cash
+        - total_cost
+        - unrealized_pnl
+        - realized_pnl
+        - total_pnl
+        - total_pnl_percent
+        - currency_code
+        - accounts
+        - updated_at
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        portfolio_id:
+          type: string
+        asset_id:
+          type: string
+        symbol:
+          type: string
+          example: CASH
+        name:
+          type: string
+          example: Cash
+        total_cash:
+          type: number
+          format: double
+          description: Current cash balance across all cash accounts.
+        total_cost:
+          type: number
+          format: double
+          description: Capital basis across all cash accounts.
+        unrealized_pnl:
+          type: number
+          format: double
+          description: Current cash balance minus capital basis.
+        realized_pnl:
+          type: number
+          format: double
+          description: Realized cash PnL. Currently zero for cash summary responses.
+        total_pnl:
+          type: number
+          format: double
+          description: Total cash PnL, calculated as unrealized_pnl plus realized_pnl.
+        total_pnl_percent:
+          type: number
+          format: double
+          description: Total cash PnL divided by capital basis, expressed as a percentage.
+        currency_code:
+          type: string
+          example: IDR
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioCashAccount"
+        updated_at:
+          type: string
+          format: date-time
+    PortfolioCashAccount:
+      type: object
+      required:
+        - account_id
+        - account_name
+        - quantity
+        - total_cost
+        - unrealized_pnl
+        - total_pnl
+        - total_pnl_percent
+        - updated_at
+      properties:
+        account_id:
+          type: string
+        account_name:
+          type: string
+        quantity:
+          type: number
+          format: double
+          description: Current cash balance for this account.
+        total_cost:
+          type: number
+          format: double
+          description: Capital basis for the current cash balance. Interest/bunga can increase quantity without increasing this value.
+        unrealized_pnl:
+          type: number
+          format: double
+          description: Current account cash balance minus account capital basis.
+        total_pnl:
+          type: number
+          format: double
+          description: Total account cash PnL.
+        total_pnl_percent:
+          type: number
+          format: double
+          description: Total account cash PnL divided by account capital basis, expressed as a percentage.
+        updated_at:
+          type: string
+          format: date-time
+    CashTransactionListResponse:
+      type: object
+      required:
+        - status
+        - data
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CashTransaction"
+    CashTransactionResponse:
+      allOf:
+        - type: object
+          required:
+            - status
+          properties:
+            status:
+              $ref: "#/components/schemas/StatusOK"
+        - $ref: "#/components/schemas/CashTransaction"
+    CashTransaction:
+      type: object
+      required:
+        - transaction_id
+        - portfolio_id
+        - account_id
+        - account_name
+        - asset_id
+        - transaction_type
+        - transaction_date
+        - amount
+        - cost_amount
+        - cash_flow_amount
+        - cost_flow_amount
+        - pnl_effect_amount
+        - currency_code
+        - notes
+        - created_at
+        - updated_at
+      properties:
+        transaction_id:
+          type: string
+        portfolio_id:
+          type: string
+        account_id:
+          type: string
+        account_name:
+          type: string
+        asset_id:
+          type: string
+        transaction_type:
+          type: string
+          enum:
+            - deposit
+            - withdrawal
+            - interest
+            - dividend
+            - coupon
+            - fee
+            - tax
+            - maturity
+        transaction_date:
+          type: string
+          format: date-time
+        amount:
+          type: number
+          format: double
+          description: Positive stored cash movement amount.
+        cost_amount:
+          type: number
+          format: double
+          description: Capital basis applied by this cash transaction. For example, deposit cost normally equals amount while interest/bunga normally has zero cost.
+        cash_flow_amount:
+          type: number
+          format: double
+          description: Signed cash balance effect. Deposit, interest, dividend, coupon, and maturity are positive. Withdrawal, fee, and tax are negative.
+        cost_flow_amount:
+          type: number
+          format: double
+          description: Signed capital basis effect. No-cost transaction types return 0.
+        pnl_effect_amount:
+          type: number
+          format: double
+          description: Signed effect on cash PnL, calculated as cash_flow_amount minus cost_flow_amount.
+        currency_code:
+          type: string
+          example: IDR
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    GoldRequest:
+      type: object
+      required:
+        - quantity_grams
+        - price
+      properties:
+        account_id:
+          type: string
+          format: uuid
+          description: Existing portfolio account ID. Omit when creating or selecting by account_name.
+        account_name:
+          type: string
+          description: Gold account name. Defaults to `Gold` when account_id is empty.
+          example: Physical Gold
+        quantity_grams:
+          type: number
+          format: double
+          exclusiveMinimum: true
+          minimum: 0
+          example: 5
+        price:
+          type: number
+          format: double
+          exclusiveMinimum: true
+          minimum: 0
+          description: Executed IDR price per gram.
+          example: 1750000
+        fee_amount:
+          type: number
+          format: double
+          minimum: 0
+          default: 0
+        tax_amount:
+          type: number
+          format: double
+          minimum: 0
+          default: 0
+        transaction_date:
+          type: string
+          format: date-time
+          description: RFC3339 timestamp. Defaults to the current UTC time.
+        notes:
+          type: string
+    GoldTransactionRequest:
+      type: object
+      required:
+        - account_id
+        - transaction_type
+        - quantity_grams
+        - price
+      properties:
+        account_id:
+          type: string
+          format: uuid
+          description: Existing account owned by the portfolio.
+        transaction_type:
+          type: string
+          enum:
+            - buy
+            - sell
+        quantity_grams:
+          type: number
+          format: double
+          exclusiveMinimum: true
+          minimum: 0
+          example: 5
+        price:
+          type: number
+          format: double
+          exclusiveMinimum: true
+          minimum: 0
+          description: Executed IDR price per gram.
+          example: 1750000
+        fee_amount:
+          type: number
+          format: double
+          minimum: 0
+          default: 0
+        tax_amount:
+          type: number
+          format: double
+          minimum: 0
+          default: 0
+        transaction_date:
+          type: string
+          format: date-time
+          description: RFC3339 timestamp. Defaults to the current UTC time on create; an omitted update retains the existing timestamp.
+        notes:
+          type: string
+    GoldHoldingResponse:
+      type: object
+      required:
+        - status
+        - data
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          $ref: "#/components/schemas/GoldHolding"
+    GoldHolding:
+      type: object
+      required:
+        - portfolio_id
+        - asset_id
+        - symbol
+        - name
+        - quantity_grams
+        - average_cost
+        - total_cost
+        - realized_pnl
+        - currency_code
+        - accounts
+        - updated_at
+      properties:
+        portfolio_id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        symbol:
+          type: string
+          example: GOLD-GRAM
+        name:
+          type: string
+          example: Gold
+        quantity_grams:
+          type: number
+          format: double
+        average_cost:
+          type: number
+          format: double
+          description: Current weighted-average IDR cost per gram across accounts.
+        total_cost:
+          type: number
+          format: double
+        realized_pnl:
+          type: number
+          format: double
+        currency_code:
+          type: string
+          example: IDR
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoldHoldingAccount"
+        updated_at:
+          type: string
+          format: date-time
+    GoldHoldingAccount:
+      type: object
+      required:
+        - account_id
+        - account_name
+        - quantity_grams
+        - average_cost
+        - total_cost
+        - realized_pnl
+        - updated_at
+      properties:
+        account_id:
+          type: string
+          format: uuid
+        account_name:
+          type: string
+        quantity_grams:
+          type: number
+          format: double
+        average_cost:
+          type: number
+          format: double
+        total_cost:
+          type: number
+          format: double
+        realized_pnl:
+          type: number
+          format: double
+        updated_at:
+          type: string
+          format: date-time
+    GoldTransactionResponse:
+      type: object
+      required:
+        - status
+        - data
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          $ref: "#/components/schemas/GoldTransaction"
+    GoldTransactionListResponse:
+      type: object
+      required:
+        - status
+        - data
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoldTransaction"
+    GoldTransaction:
+      type: object
+      required:
+        - transaction_id
+        - portfolio_id
+        - account_id
+        - account_name
+        - asset_id
+        - transaction_type
+        - transaction_date
+        - quantity_grams
+        - price
+        - gross_amount
+        - cost_amount
+        - fee_amount
+        - tax_amount
+        - net_amount
+        - realized_pnl
+        - currency_code
+        - notes
+        - created_at
+        - updated_at
+      properties:
+        transaction_id:
+          type: string
+          format: uuid
+        portfolio_id:
+          type: string
+          format: uuid
+        account_id:
+          type: string
+          format: uuid
+        account_name:
+          type: string
+        asset_id:
+          type: string
+          format: uuid
+        transaction_type:
+          type: string
+          enum:
+            - buy
+            - sell
+        transaction_date:
+          type: string
+          format: date-time
+        quantity_grams:
+          type: number
+          format: double
+        price:
+          type: number
+          format: double
+          description: Executed IDR price per gram.
+        gross_amount:
+          type: number
+          format: double
+          description: Quantity multiplied by executed price.
+        cost_amount:
+          type: number
+          format: double
+          description: Buy cost including fees and taxes, or moving-average cost removed by a sell.
+        fee_amount:
+          type: number
+          format: double
+        tax_amount:
+          type: number
+          format: double
+        net_amount:
+          type: number
+          format: double
+          description: Buy gross plus fees and taxes, or sell gross minus fees and taxes.
+        realized_pnl:
+          type: number
+          format: double
+          description: Sell net proceeds minus removed moving-average cost; zero for buys.
+        currency_code:
+          type: string
+          example: IDR
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CashSnapshotListResponse:
+      type: object
+      required:
+        - status
+        - data
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CashSnapshot"
+    CashSnapshot:
+      type: object
+      required:
+        - portfolio_id
+        - asset_class_id
+        - asset_class_code
+        - snapshot_date
+        - total_cost
+        - market_value
+        - unrealized_pnl
+        - realized_pnl
+        - total_pnl
+        - total_pnl_percent
+        - currency_code
+        - created_at
+        - updated_at
+      properties:
+        portfolio_id:
+          type: string
+        asset_class_id:
+          type: integer
+        asset_class_code:
+          type: string
+          example: CASH
+        snapshot_date:
+          type: string
+          format: date
+        total_cost:
+          type: number
+          format: double
+          description: Capital basis for cash.
+        market_value:
+          type: number
+          format: double
+          description: Current cash balance.
+        unrealized_pnl:
+          type: number
+          format: double
+          description: Current cash balance minus capital basis.
+        realized_pnl:
+          type: number
+          format: double
+        total_pnl:
+          type: number
+          format: double
+        total_pnl_percent:
+          type: number
+          format: double
+        currency_code:
+          type: string
+          example: IDR
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time

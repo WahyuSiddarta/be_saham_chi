@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/WahyuSiddarta/be_saham_chi/internal/database"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/logger"
+
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 )
@@ -29,12 +31,19 @@ func main() {
 		databaseURL: os.Getenv("DATABASE_URL"),
 		logFile:     os.Getenv("APP_LOG_FILE"),
 		status:      os.Getenv("APP_ENV"),
+		goldSymbol:  os.Getenv("GOLD_SYMBOL"),
+		wtiSymbol:   os.Getenv("WTI_OIL_SYMBOL"),
+		brentSymbol: os.Getenv("BRENT_OIL_SYMBOL"),
+		corsOrigins: strings.Split(os.Getenv("CORS_ALLOWED_ORIGINS"), ","),
 	}}
 	if app.config.addr == ":" {
 		Log.Fatal().Msg("APP_HOST and APP_PORT must be set")
 	}
 	if app.config.logFile == "" {
 		Log.Fatal().Msg("APP_LOG_FILE must be set")
+	}
+	if app.config.goldSymbol == "" || app.config.wtiSymbol == "" || app.config.brentSymbol == "" {
+		Log.Fatal().Msg("GOLD_SYMBOL, WTI_OIL_SYMBOL, and BRENT_OIL_SYMBOL must be set; see .env.example")
 	}
 	jwtConfig, err := loadJWTConfig()
 	if err != nil {
@@ -67,10 +76,10 @@ func main() {
 	defer app.database.Close()
 
 	schemaContext, cancelSchema := context.WithTimeout(context.Background(), 10*time.Second)
-	err = database.EnsureAuthTables(schemaContext, app.database)
+	err = database.EnsureTables(schemaContext, app.database)
 	cancelSchema()
 	if err != nil {
-		Log.Fatal().Err(err).Msg("ensure auth tables")
+		Log.Fatal().Err(err).Msg("ensure application tables")
 	}
 
 	server := &http.Server{

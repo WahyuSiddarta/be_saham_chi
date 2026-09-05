@@ -1,7 +1,7 @@
 package response
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 )
 
@@ -39,5 +39,15 @@ func writeJSON(w http.ResponseWriter, status int, data any) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
-	return json.NewEncoder(w).Encode(data)
+	return json.MarshalWrite(w, data)
 }
+
+// JSON writes an already-shaped response, preserving the V2 API contract.
+func JSON(w http.ResponseWriter, status int, value any) error { return writeJSON(w, status, value) }
+func Error(w http.ResponseWriter, status int, message string) error {
+	return writeJSON(w, status, struct {
+		Status string `json:"status"`
+		Error  string `json:"error"`
+	}{"nok", message})
+}
+func NoContent(w http.ResponseWriter, status int) error { w.WriteHeader(status); return nil }

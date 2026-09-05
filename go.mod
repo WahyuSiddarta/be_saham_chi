@@ -10,6 +10,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-colorable v0.1.15
 	github.com/mattn/go-isatty v0.0.24
+	github.com/oscarli916/yahoo-finance-api v0.1.3
 	github.com/rs/zerolog v1.35.1
 )
 
