@@ -209,6 +209,7 @@ func (s *BondService) ListBondSnapshots(ctx context.Context, userID string, port
 	snapshots, err := s.repository.ListBondSnapshots(ctx, userID, portfolioID, from, to)
 	return serviceResult(snapshots, err, "portfolioService.ListBondSnapshots -> PortfolioRepository.ListBondSnapshots")
 }
+
 func validateBondInput(input BondInput) (repository.BondCommand, error) {
 	assetInput, err := validateBondAssetInput(input.BondAssetInput)
 	if err != nil {

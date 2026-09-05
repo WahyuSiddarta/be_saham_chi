@@ -45,7 +45,9 @@ func (app Application) routes() http.Handler {
 	repositories := repository.New(app.database)
 	authService := service.NewAuthService(repositories, app.config.jwt)
 	commodityService := service.NewCommodityService(map[string]string{
-		"gold": app.config.goldSymbol, "oil-wti": app.config.wtiSymbol, "oil-brent": app.config.brentSymbol,
+		"gold":      app.config.goldSymbol,
+		"oil-wti":   app.config.wtiSymbol,
+		"oil-brent": app.config.brentSymbol,
 	}, yahoo.NewCommodityProvider(app.config.goldSymbol), repositories, repositories)
 
 	handlers := handler.New(app.config.status, Log, authService, handler.Domains{
