@@ -128,9 +128,8 @@ func NewQuoteResponse(quote repository.MarketPrice) QuoteResponse {
 }
 
 func NewKlineListResponse(klines []repository.MarketKline) KlineListResponse {
-	response := make([]KlineResponse, 0, len(klines))
-	for _, kline := range klines {
-		response = append(response, KlineResponse{
+	return helper.MapSlice(klines, func(kline repository.MarketKline) KlineResponse {
+		return KlineResponse{
 			Symbol:    kline.Symbol,
 			Interval:  kline.Interval,
 			OpenTime:  kline.OpenTime,
@@ -141,10 +140,8 @@ func NewKlineListResponse(klines []repository.MarketKline) KlineListResponse {
 			Volume:    kline.Volume,
 			Source:    kline.Source,
 			FetchedAt: kline.FetchedAt,
-		})
-	}
-
-	return response
+		}
+	})
 }
 
 func newMasterDataResponse(item repository.MasterData) MasterDataResponse {
@@ -156,11 +153,7 @@ func newMasterDataResponse(item repository.MasterData) MasterDataResponse {
 }
 
 func NewPortfolioListResponse(portfolios []repository.Portfolio) PortfolioListResponse {
-	response := make([]PortfolioItemResponse, 0, len(portfolios))
-	for _, portfolio := range portfolios {
-		response = append(response, newPortfolioItemResponse(portfolio))
-	}
-	return response
+	return helper.MapSlice(portfolios, newPortfolioItemResponse)
 }
 
 func NewPortfolioResponse(portfolio repository.Portfolio) PortfolioResponse {
@@ -224,11 +217,7 @@ func portfolioHTTPError(err error, fallback string) (int, string) {
 }
 
 func NewBondListResponse(bonds []repository.PortfolioBond) BondListResponse {
-	response := make([]BondItemResponse, 0, len(bonds))
-	for _, bond := range bonds {
-		response = append(response, newBondItemResponse(bond))
-	}
-	return response
+	return helper.MapSlice(bonds, newBondItemResponse)
 }
 
 func NewBondResponse(bond repository.PortfolioBond) BondResponse {
@@ -310,11 +299,7 @@ func newBondValuationResponse(valuation *repository.PortfolioBondValuation) *Bon
 }
 
 func NewBondTransactionListResponse(transactions []repository.PortfolioBondTransaction) BondTransactionListResponse {
-	response := make([]BondTransactionItemResponse, 0, len(transactions))
-	for _, bondTx := range transactions {
-		response = append(response, newBondTransactionItemResponse(bondTx))
-	}
-	return response
+	return helper.MapSlice(transactions, newBondTransactionItemResponse)
 }
 
 func NewBondTransactionResponse(bondTx repository.PortfolioBondTransaction) BondTransactionResponse {
@@ -513,17 +498,12 @@ func NewPortfolioCashResponse(cash repository.PortfolioCash) PortfolioCashRespon
 }
 
 func NewCashTransactionListResponse(transactions []repository.PortfolioCashTransaction) CashTransactionListResponse {
-	response := make([]CashTransactionItemResponse, 0, len(transactions))
-	for _, cashTx := range transactions {
-		response = append(response, newCashTransactionItemResponse(cashTx))
-	}
-	return response
+	return helper.MapSlice(transactions, newCashTransactionItemResponse)
 }
 
 func NewCashSnapshotListResponse(snapshots []repository.PortfolioCashSnapshot) CashSnapshotListResponse {
-	response := make([]CashSnapshotResponse, 0, len(snapshots))
-	for _, snapshot := range snapshots {
-		response = append(response, CashSnapshotResponse{
+	return helper.MapSlice(snapshots, func(snapshot repository.PortfolioCashSnapshot) CashSnapshotResponse {
+		return CashSnapshotResponse{
 			PortfolioID:     snapshot.PortfolioID,
 			AssetClassID:    snapshot.AssetClassID,
 			AssetClassCode:  snapshot.AssetClassCode,
@@ -537,9 +517,8 @@ func NewCashSnapshotListResponse(snapshots []repository.PortfolioCashSnapshot) C
 			CurrencyCode:    snapshot.CurrencyCode,
 			CreatedAt:       helper.FormatTime(snapshot.CreatedAt),
 			UpdatedAt:       helper.FormatTime(snapshot.UpdatedAt),
-		})
-	}
-	return response
+		}
+	})
 }
 
 func NewCashTransactionResponse(cashTx repository.PortfolioCashTransaction) CashTransactionResponse {

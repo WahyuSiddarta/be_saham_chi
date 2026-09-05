@@ -148,5 +148,5 @@ func mapGoldError(err error, action string) error {
 	if errors.Is(err, repository.ErrGoldHoldingQuantity) {
 		return fmt.Errorf("%s: %w", action, ErrInsufficientGoldQuantity)
 	}
-	return wrapPortfolioServiceError(action, err)
+	return wrapError(action, err)
 }

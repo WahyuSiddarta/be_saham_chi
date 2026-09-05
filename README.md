@@ -18,9 +18,11 @@ with resource groups nested inside them:
 - `/private/portfolios`: portfolio CRUD.
 - `/private/portfolio/{portfolio_id}`: cash, bonds, gold, and their transactions.
 
-`cmd/common.go` registers route entries containing the HTTP method, relative path,
-permission, and handler. It applies the permission check and shared response
-adapter once. An empty permission inherits the route group middleware.
+`cmd/common.go` registers one table per resource, with its path and permission
+prefix specified once. Each entry lists its HTTP method, relative path,
+permission action, and handler. For example, `portfolio.cash` plus `read` requires
+`portfolio.cash.read`. Empty actions use the group's middleware. Special actions,
+such as bond valuation requiring `update`, remain explicit.
 
 Shared ACLs sit on their resource groups; different read/create/update/delete
 permissions remain on individual operations. Existing V2 URLs and permissions
@@ -28,6 +30,14 @@ are retained. The Chi OpenAPI contract is served at `/api/v1/public/openapi.yaml
 with an interactive viewer at `/api/v1/public/docs`. All routes are under
 `/api/v1`; the former root-level health, login, claims, and documentation URLs
 are no longer registered. Login uses `/api/v1/public/auth/login`.
+
+## Shared implementation
+
+- `internal/helper.MapSlice` handles list conversion while preserving empty JSON arrays.
+- `internal/service/common.go` wraps service errors and discards partial results on failure.
+- `internal/repository/common.go` shares struct-row scanning and preserves row errors.
+
+Domain validation, accounting rules, and SQL stay in their feature files.
 
 ## Middleware
 

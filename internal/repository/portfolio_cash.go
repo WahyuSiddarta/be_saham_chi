@@ -74,7 +74,7 @@ func (r *Repository) ListCashTransactions(ctx context.Context, userID string, po
 	}
 	defer rows.Close()
 
-	return scanCashTransactions(rows)
+	return scanRows[PortfolioCashTransaction](rows)
 }
 
 func (r *Repository) GetCashTransaction(ctx context.Context, userID string, portfolioID string, transactionID string) (PortfolioCashTransaction, error) {
@@ -459,21 +459,6 @@ func cashTransactionSelectSQL() string {
 		JOIN assets a ON a.asset_id = pt.asset_id
 		JOIN asset_classes ac ON ac.asset_class_id = a.asset_class_id
 	`
-}
-
-func scanCashTransactions(rows *sqlx.Rows) ([]PortfolioCashTransaction, error) {
-	transactions := make([]PortfolioCashTransaction, 0)
-	for rows.Next() {
-		var cashTx PortfolioCashTransaction
-		if err := rows.StructScan(&cashTx); err != nil {
-			return nil, err
-		}
-		transactions = append(transactions, cashTx)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return transactions, nil
 }
 
 type cashHoldingRow struct {

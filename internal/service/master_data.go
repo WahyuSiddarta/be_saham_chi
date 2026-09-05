@@ -29,10 +29,7 @@ func NewMasterDataService(repo masterDataRepository) *MasterDataService {
 
 func (s *MasterDataService) ListMasterData(ctx context.Context) ([]repository.MasterData, error) {
 	items, err := s.repository.ListMasterData(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("masterDataService.List: %w", err)
-	}
-	return items, nil
+	return serviceResult(items, err, "masterDataService.List")
 }
 
 func (s *MasterDataService) UpdateMasterData(ctx context.Context, key string, value float64) (repository.MasterData, error) {

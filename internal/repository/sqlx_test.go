@@ -171,3 +171,61 @@ func TestTransactionNotFoundMapping(t *testing.T) {
 		})
 	}
 }
+
+func TestTransactionListsPreserveRowMappingAndEmptyResults(t *testing.T) {
+	for _, kind := range []string{"cash", "bond"} {
+		for _, mode := range []string{"row", "empty", "invalid amount"} {
+			t.Run(kind+"/"+mode, func(t *testing.T) {
+				amountColumn := "amount"
+				if kind == "bond" {
+					amountColumn = "principal_amount"
+				}
+				values := []driver.Value{"tx-1", float64(125)}
+				if mode == "empty" {
+					values = nil
+				} else if mode == "invalid amount" {
+					values[1] = "invalid"
+				}
+				repo, _ := testRepository(t,
+					queryResult{contains: "FROM portfolios", columns: []string{"portfolio_id"}, values: []driver.Value{"p-1"}},
+					queryResult{contains: "ac.code = '" + kind + "'", columns: []string{"transaction_id", amountColumn}, values: values},
+				)
+				var count int
+				var isNil bool
+				var id string
+				var amount float64
+				var err error
+				if kind == "cash" {
+					var rows []PortfolioCashTransaction
+					rows, err = repo.ListCashTransactions(context.Background(), "user", "p-1")
+					count, isNil = len(rows), rows == nil
+					if count > 0 {
+						id, amount = rows[0].TransactionID, rows[0].Amount
+					}
+				} else {
+					var rows []PortfolioBondTransaction
+					rows, err = repo.ListBondTransactions(context.Background(), "user", "p-1")
+					count, isNil = len(rows), rows == nil
+					if count > 0 {
+						id, amount = rows[0].TransactionID, rows[0].PrincipalAmount
+					}
+				}
+				if mode == "invalid amount" {
+					if err == nil || !isNil {
+						t.Fatalf("expected row error and nil result: err=%v count=%d", err, count)
+					}
+					return
+				}
+				if err != nil || isNil {
+					t.Fatalf("err=%v nil=%t", err, isNil)
+				}
+				if mode == "empty" && count != 0 {
+					t.Fatalf("expected empty list, got %d rows", count)
+				}
+				if mode == "row" && (count != 1 || id != "tx-1" || amount != 125) {
+					t.Fatalf("count=%d id=%s amount=%f", count, id, amount)
+				}
+			})
+		}
+	}
+}

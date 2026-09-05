@@ -57,10 +57,7 @@ func NewPortfolioService(repo PortfolioRepository) *PortfolioService {
 
 func (s *PortfolioService) ListPortfolio(ctx context.Context, userID string) ([]repository.Portfolio, error) {
 	portfolios, err := s.repository.ListPortfolio(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("portfolioService.List -> PortfolioRepository.List: %w", err)
-	}
-	return portfolios, nil
+	return serviceResult(portfolios, err, "portfolioService.List -> PortfolioRepository.List")
 }
 
 func (s *PortfolioService) Get(ctx context.Context, userID string, portfolioID string) (repository.Portfolio, error) {
@@ -69,10 +66,7 @@ func (s *PortfolioService) Get(ctx context.Context, userID string, portfolioID s
 	}
 
 	portfolio, err := s.repository.GetByID(ctx, userID, portfolioID)
-	if err != nil {
-		return repository.Portfolio{}, wrapPortfolioServiceError("portfolioService.Get -> PortfolioRepository.GetByID", err)
-	}
-	return portfolio, nil
+	return serviceResult(portfolio, err, "portfolioService.Get -> PortfolioRepository.GetByID")
 }
 
 func (s *PortfolioService) CreatePortfolio(ctx context.Context, userID string, input PortfolioInput) (repository.Portfolio, error) {
@@ -105,7 +99,7 @@ func (s *PortfolioService) UpdatePortfolio(ctx context.Context, userID string, p
 		if isUniqueViolation(err) {
 			return repository.Portfolio{}, fmt.Errorf("portfolioService.Update -> PortfolioRepository.Update: %w", ErrDuplicatePortfolioName)
 		}
-		return repository.Portfolio{}, wrapPortfolioServiceError("portfolioService.Update -> PortfolioRepository.Update", err)
+		return repository.Portfolio{}, wrapError("portfolioService.Update -> PortfolioRepository.Update", err)
 	}
 	return portfolio, nil
 }
@@ -121,7 +115,7 @@ func (s *PortfolioService) Delete(ctx context.Context, userID string, portfolioI
 	}
 
 	err := s.repository.DeleteAndMove(ctx, userID, portfolioID, targetPortfolioID)
-	return wrapPortfolioServiceError("portfolioService.Delete -> PortfolioRepository.DeleteAndMove", err)
+	return wrapError("portfolioService.Delete -> PortfolioRepository.DeleteAndMove", err)
 }
 func validatePortfolioInput(input PortfolioInput) (repository.PortfolioCommand, error) {
 	name := strings.TrimSpace(input.Name)
@@ -129,13 +123,6 @@ func validatePortfolioInput(input PortfolioInput) (repository.PortfolioCommand, 
 		return repository.PortfolioCommand{}, ErrInvalidPortfolioName
 	}
 	return repository.PortfolioCommand{Name: name}, nil
-}
-
-func wrapPortfolioServiceError(action string, err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%s: %w", action, err)
 }
 
 func isUniqueViolation(err error) bool {

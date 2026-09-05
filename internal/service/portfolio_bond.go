@@ -85,10 +85,7 @@ func (s *BondService) CreateBond(ctx context.Context, userID string, portfolioID
 	}
 
 	bond, err := s.repository.CreateBond(ctx, userID, portfolioID, repoInput, time.Now().UTC())
-	if err != nil {
-		return repository.PortfolioBond{}, bondRepositoryError(err, "portfolioService.CreateBond -> PortfolioRepository.CreateBond")
-	}
-	return bond, nil
+	return serviceResult(bond, err, "portfolioService.CreateBond -> PortfolioRepository.CreateBond")
 }
 
 func (s *BondService) ListBonds(ctx context.Context, userID string, portfolioID string) ([]repository.PortfolioBond, error) {
@@ -97,10 +94,7 @@ func (s *BondService) ListBonds(ctx context.Context, userID string, portfolioID 
 	}
 
 	bonds, err := s.repository.ListBonds(ctx, userID, portfolioID)
-	if err != nil {
-		return nil, bondRepositoryError(err, "portfolioService.ListBonds -> PortfolioRepository.ListBonds")
-	}
-	return bonds, nil
+	return serviceResult(bonds, err, "portfolioService.ListBonds -> PortfolioRepository.ListBonds")
 }
 
 func (s *BondService) GetBond(ctx context.Context, userID string, portfolioID string, assetID string) (repository.PortfolioBond, error) {
@@ -112,10 +106,7 @@ func (s *BondService) GetBond(ctx context.Context, userID string, portfolioID st
 	}
 
 	bond, err := s.repository.GetBond(ctx, userID, portfolioID, assetID)
-	if err != nil {
-		return repository.PortfolioBond{}, bondRepositoryError(err, "portfolioService.GetBond -> PortfolioRepository.GetBond")
-	}
-	return bond, nil
+	return serviceResult(bond, err, "portfolioService.GetBond -> PortfolioRepository.GetBond")
 }
 
 func (s *BondService) UpdateBond(ctx context.Context, userID string, portfolioID string, assetID string, input BondAssetInput) (repository.PortfolioBond, error) {
@@ -128,10 +119,7 @@ func (s *BondService) UpdateBond(ctx context.Context, userID string, portfolioID
 	}
 
 	bond, err := s.repository.UpdateBond(ctx, userID, portfolioID, assetID, repoInput)
-	if err != nil {
-		return repository.PortfolioBond{}, bondRepositoryError(err, "portfolioService.UpdateBond -> PortfolioRepository.UpdateBond")
-	}
-	return bond, nil
+	return serviceResult(bond, err, "portfolioService.UpdateBond -> PortfolioRepository.UpdateBond")
 }
 
 func (s *BondService) AdjustBondValuation(ctx context.Context, userID string, portfolioID string, assetID string, input BondValuationInput) (repository.PortfolioBond, error) {
@@ -147,10 +135,7 @@ func (s *BondService) AdjustBondValuation(ctx context.Context, userID string, po
 	}
 
 	bond, err := s.repository.AdjustBondValuation(ctx, userID, portfolioID, assetID, repoInput, time.Now().UTC())
-	if err != nil {
-		return repository.PortfolioBond{}, bondRepositoryError(err, "portfolioService.AdjustBondValuation -> PortfolioRepository.AdjustBondValuation")
-	}
-	return bond, nil
+	return serviceResult(bond, err, "portfolioService.AdjustBondValuation -> PortfolioRepository.AdjustBondValuation")
 }
 
 func (s *BondService) CreateBondTransaction(ctx context.Context, userID string, portfolioID string, input BondTransactionInput) (repository.PortfolioBondTransaction, error) {
@@ -160,10 +145,7 @@ func (s *BondService) CreateBondTransaction(ctx context.Context, userID string, 
 	}
 
 	bondTx, err := s.repository.CreateBondTransaction(ctx, userID, portfolioID, repoInput, time.Now().UTC())
-	if err != nil {
-		return repository.PortfolioBondTransaction{}, bondRepositoryErrorTx(err, "portfolioService.CreateBondTransaction -> PortfolioRepository.CreateBondTransaction")
-	}
-	return bondTx, nil
+	return serviceResult(bondTx, err, "portfolioService.CreateBondTransaction -> PortfolioRepository.CreateBondTransaction")
 }
 
 func (s *BondService) ListBondTransactions(ctx context.Context, userID string, portfolioID string) ([]repository.PortfolioBondTransaction, error) {
@@ -172,10 +154,7 @@ func (s *BondService) ListBondTransactions(ctx context.Context, userID string, p
 	}
 
 	transactions, err := s.repository.ListBondTransactions(ctx, userID, portfolioID)
-	if err != nil {
-		return nil, bondRepositoryErrorTx(err, "portfolioService.ListBondTransactions -> PortfolioRepository.ListBondTransactions")
-	}
-	return transactions, nil
+	return serviceResult(transactions, err, "portfolioService.ListBondTransactions -> PortfolioRepository.ListBondTransactions")
 }
 
 func (s *BondService) GetBondTransaction(ctx context.Context, userID string, portfolioID string, transactionID string) (repository.PortfolioBondTransaction, error) {
@@ -187,10 +166,7 @@ func (s *BondService) GetBondTransaction(ctx context.Context, userID string, por
 	}
 
 	bondTx, err := s.repository.GetBondTransaction(ctx, userID, portfolioID, transactionID)
-	if err != nil {
-		return repository.PortfolioBondTransaction{}, bondRepositoryErrorTx(err, "portfolioService.GetBondTransaction -> PortfolioRepository.GetBondTransaction")
-	}
-	return bondTx, nil
+	return serviceResult(bondTx, err, "portfolioService.GetBondTransaction -> PortfolioRepository.GetBondTransaction")
 }
 
 func (s *BondService) UpdateBondTransaction(ctx context.Context, userID string, portfolioID string, transactionID string, input BondTransactionInput) (repository.PortfolioBondTransaction, error) {
@@ -203,10 +179,7 @@ func (s *BondService) UpdateBondTransaction(ctx context.Context, userID string, 
 	}
 
 	bondTx, err := s.repository.UpdateBondTransaction(ctx, userID, portfolioID, transactionID, repoInput, time.Now().UTC())
-	if err != nil {
-		return repository.PortfolioBondTransaction{}, bondRepositoryErrorTx(err, "portfolioService.UpdateBondTransaction -> PortfolioRepository.UpdateBondTransaction")
-	}
-	return bondTx, nil
+	return serviceResult(bondTx, err, "portfolioService.UpdateBondTransaction -> PortfolioRepository.UpdateBondTransaction")
 }
 
 func (s *BondService) DeleteBondTransaction(ctx context.Context, userID string, portfolioID string, transactionID string) error {
@@ -219,7 +192,7 @@ func (s *BondService) DeleteBondTransaction(ctx context.Context, userID string, 
 
 	err := s.repository.DeleteBondTransaction(ctx, userID, portfolioID, transactionID)
 	if err != nil {
-		return bondRepositoryErrorTx(err, "portfolioService.DeleteBondTransaction -> PortfolioRepository.DeleteBondTransaction")
+		return wrapError("portfolioService.DeleteBondTransaction -> PortfolioRepository.DeleteBondTransaction", err)
 	}
 	return nil
 }
@@ -234,10 +207,7 @@ func (s *BondService) ListBondSnapshots(ctx context.Context, userID string, port
 	}
 
 	snapshots, err := s.repository.ListBondSnapshots(ctx, userID, portfolioID, from, to)
-	if err != nil {
-		return nil, bondRepositoryError(err, "portfolioService.ListBondSnapshots -> PortfolioRepository.ListBondSnapshots")
-	}
-	return snapshots, nil
+	return serviceResult(snapshots, err, "portfolioService.ListBondSnapshots -> PortfolioRepository.ListBondSnapshots")
 }
 func validateBondInput(input BondInput) (repository.BondCommand, error) {
 	assetInput, err := validateBondAssetInput(input.BondAssetInput)
@@ -405,12 +375,4 @@ func bondTransactionNeedsPrincipal(transactionType string) bool {
 	default:
 		return false
 	}
-}
-
-func bondRepositoryError(err error, action string) error {
-	return wrapPortfolioServiceError(action, err)
-}
-
-func bondRepositoryErrorTx(err error, action string) error {
-	return wrapPortfolioServiceError(action, err)
 }

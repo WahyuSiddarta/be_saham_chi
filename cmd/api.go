@@ -65,11 +65,9 @@ func (app Application) routes() http.Handler {
 		publicRoute.Get("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, "docs/openapi.yaml") })
 		publicRoute.Get("/docs", handlers.Docs)
 		publicRoute.Get("/docs/", handlers.Docs)
-		publicRoute.Route("/auth", func(authRoute chi.Router) {
-			registerRoutes(authRoute, handlers, []apiRoute{
-				{http.MethodPost, "/register", "", handlers.Register},
-				{http.MethodPost, "/login", "", handlers.Login},
-			})
+		registerRoutes(publicRoute, handlers, "/auth", "", []apiRoute{
+			{http.MethodPost, "/register", "", handlers.Register},
+			{http.MethodPost, "/login", "", handlers.Login},
 		})
 	})
 
@@ -78,146 +76,73 @@ func (app Application) routes() http.Handler {
 		privateRoute.Use(middleware.Authenticate(app.config.jwt))
 	})
 
-	// portfolio routes
-	privateRoute.Route("/portfolios", func(portfoliosRoute chi.Router) {
-		registerRoutes(portfoliosRoute, handlers, []apiRoute{
-			{http.MethodGet, "/", "portfolio.read", handlers.ListPortfolio},
-			{http.MethodPost, "/", "portfolio.create", handlers.CreatePortfolio},
-			{http.MethodGet, "/{portfolio_id}", "portfolio.read", handlers.GetPortfolio},
-			{http.MethodPut, "/{portfolio_id}", "portfolio.update", handlers.UpdatePortfolio},
-			{http.MethodDelete, "/{portfolio_id}", "portfolio.delete", handlers.DeletePortfolio},
-		})
+	registerRoutes(privateRoute, handlers, "/portfolios", "portfolio", []apiRoute{
+		{http.MethodGet, "/", "read", handlers.ListPortfolio},
+		{http.MethodPost, "/", "create", handlers.CreatePortfolio},
+		{http.MethodGet, "/{portfolio_id}", "read", handlers.GetPortfolio},
+		{http.MethodPut, "/{portfolio_id}", "update", handlers.UpdatePortfolio},
+		{http.MethodDelete, "/{portfolio_id}", "delete", handlers.DeletePortfolio},
 	})
 
-	privateRoute.Route("/portfolio/{portfolio_id}", func(portfolioDetailRoute chi.Router) {
-		// portfolio cash routes
-		portfolioDetailRoute.Route("/cash", func(cashRoute chi.Router) {
-			registerRoutes(cashRoute, handlers, []apiRoute{
-				{http.MethodGet, "/", "portfolio.cash.read", handlers.GetCash},
-				{http.MethodPost, "/", "portfolio.cash.create", handlers.AddCash},
-				{http.MethodGet, "/snapshots", "portfolio.cash.read", handlers.ListCashSnapshots},
-			})
-
-			// portfolio cash transaction routes
-			cashRoute.Route("/transactions", func(transactionRoute chi.Router) {
-				registerRoutes(transactionRoute, handlers, []apiRoute{
-					{http.MethodGet, "/", "portfolio.cash.read", handlers.ListCashTransactions},
-					{http.MethodPost, "/", "portfolio.cash.create", handlers.CreateCashTransaction},
-					{http.MethodGet, "/{transaction_id}", "portfolio.cash.read", handlers.GetCashTransaction},
-					{http.MethodPut, "/{transaction_id}", "portfolio.cash.update", handlers.UpdateCashTransaction},
-					{http.MethodDelete, "/{transaction_id}", "portfolio.cash.delete", handlers.DeleteCashTransaction},
-				})
-			})
-		})
-
-		// portfolio bond routes
-		portfolioDetailRoute.Route("/bonds", func(bondRoute chi.Router) {
-			registerRoutes(bondRoute, handlers, []apiRoute{
-				{http.MethodGet, "/", "portfolio.bond.read", handlers.ListBonds},
-				{http.MethodPost, "/", "portfolio.bond.create", handlers.CreateBond},
-				{http.MethodGet, "/snapshots", "portfolio.bond.read", handlers.ListBondSnapshots},
-			})
-
-			// portfolio bond transaction routes
-			bondRoute.Route("/transactions", func(transactionRoute chi.Router) {
-				registerRoutes(transactionRoute, handlers, []apiRoute{
-					{http.MethodGet, "/", "portfolio.bond.read", handlers.ListBondTransactions},
-					{http.MethodPost, "/", "portfolio.bond.create", handlers.CreateBondTransaction},
-					{http.MethodGet, "/{transaction_id}", "portfolio.bond.read", handlers.GetBondTransaction},
-					{http.MethodPut, "/{transaction_id}", "portfolio.bond.update", handlers.UpdateBondTransaction},
-					{http.MethodDelete, "/{transaction_id}", "portfolio.bond.delete", handlers.DeleteBondTransaction},
-				})
-			})
-
-			// portfolio bond detail routes
-			bondRoute.Route("/{asset_id}", func(assetRoute chi.Router) {
-				registerRoutes(assetRoute, handlers, []apiRoute{
-					{http.MethodGet, "/", "portfolio.bond.read", handlers.GetBond},
-					{http.MethodPut, "/", "portfolio.bond.update", handlers.UpdateBond},
-					{http.MethodPost, "/valuation", "portfolio.bond.update", handlers.AdjustBondValuation},
-				})
-			})
-		})
-
-		// portfolio commodity routes
-		portfolioDetailRoute.Route("/commodities", func(commodityRoute chi.Router) {
-			// portfolio gold routes
-			commodityRoute.Route("/gold", func(goldRoute chi.Router) {
-				registerRoutes(goldRoute, handlers, []apiRoute{
-					{http.MethodGet, "/", "portfolio.commodity.read", handlers.GetGold},
-					{http.MethodPost, "/", "portfolio.commodity.create", handlers.CreateGold},
-				})
-
-				// portfolio commodity transaction routes
-				goldRoute.Route("/transactions", func(transactionRoute chi.Router) {
-					registerRoutes(transactionRoute, handlers, []apiRoute{
-						{http.MethodGet, "/", "portfolio.commodity.read", handlers.ListGoldTransactions},
-						{http.MethodPost, "/", "portfolio.commodity.create", handlers.CreateGoldTransaction},
-						{http.MethodGet, "/{transaction_id}", "portfolio.commodity.read", handlers.GetGoldTransaction},
-						{http.MethodPut, "/{transaction_id}", "portfolio.commodity.update", handlers.UpdateGoldTransaction},
-						{http.MethodDelete, "/{transaction_id}", "portfolio.commodity.delete", handlers.DeleteGoldTransaction},
-					})
-				})
-			})
-		})
-
+	registerRoutes(privateRoute, handlers, "/portfolio/{portfolio_id}/cash", "portfolio.cash", []apiRoute{
+		{http.MethodGet, "/", "read", handlers.GetCash},
+		{http.MethodPost, "/", "create", handlers.AddCash},
+		{http.MethodGet, "/snapshots", "read", handlers.ListCashSnapshots},
+		{http.MethodGet, "/transactions", "read", handlers.ListCashTransactions},
+		{http.MethodPost, "/transactions", "create", handlers.CreateCashTransaction},
+		{http.MethodGet, "/transactions/{transaction_id}", "read", handlers.GetCashTransaction},
+		{http.MethodPut, "/transactions/{transaction_id}", "update", handlers.UpdateCashTransaction},
+		{http.MethodDelete, "/transactions/{transaction_id}", "delete", handlers.DeleteCashTransaction},
 	})
 
-	// admin routes
-	privateRoute.Route("/admin", func(adminRoute chi.Router) {
-		// master data routes
-		adminRoute.Route("/master-data", func(masterDataRoute chi.Router) {
-			registerRoutes(masterDataRoute, handlers, []apiRoute{
-				{http.MethodGet, "/", "master_data.read", handlers.ListMasterData},
-				{http.MethodPut, "/{key}", "master_data.update", handlers.UpdateMasterData},
-			})
-		})
-
-		// stock management routes
-		adminRoute.Route("/stocks", func(stockRoute chi.Router) {
-			// stock management routes require "stock.manage" permission
-			stockRoute.Use(middleware.RequireRule("stock.manage"))
-			registerRoutes(stockRoute, handlers, []apiRoute{
-				{http.MethodGet, "/", "", handlers.ListStock},
-				{http.MethodPost, "/", "", handlers.CreateStock},
-			})
-
-			// stock detail routes
-			stockRoute.Route("/{ticker}", func(tickerRoute chi.Router) {
-				registerRoutes(tickerRoute, handlers, []apiRoute{
-					{http.MethodGet, "/", "", handlers.GetStock},
-					{http.MethodPut, "/", "", handlers.UpdateStock},
-					{http.MethodPut, "/status", "", handlers.UpdateStockStatus},
-				})
-			})
-		})
+	registerRoutes(privateRoute, handlers, "/portfolio/{portfolio_id}/bonds", "portfolio.bond", []apiRoute{
+		{http.MethodGet, "/", "read", handlers.ListBonds},
+		{http.MethodPost, "/", "create", handlers.CreateBond},
+		{http.MethodGet, "/snapshots", "read", handlers.ListBondSnapshots},
+		{http.MethodGet, "/transactions", "read", handlers.ListBondTransactions},
+		{http.MethodPost, "/transactions", "create", handlers.CreateBondTransaction},
+		{http.MethodGet, "/transactions/{transaction_id}", "read", handlers.GetBondTransaction},
+		{http.MethodPut, "/transactions/{transaction_id}", "update", handlers.UpdateBondTransaction},
+		{http.MethodDelete, "/transactions/{transaction_id}", "delete", handlers.DeleteBondTransaction},
+		{http.MethodGet, "/{asset_id}", "read", handlers.GetBond},
+		{http.MethodPut, "/{asset_id}", "update", handlers.UpdateBond},
+		{http.MethodPost, "/{asset_id}/valuation", "update", handlers.AdjustBondValuation},
 	})
 
-	// commodity market routes
-	privateRoute.Route("/commodities", func(commodityRoute chi.Router) {
-		commodityRoute.Route("/{commodity}", func(commodityDetailRoute chi.Router) {
-			commodityDetailRoute.Use(middleware.CommodityRule)
-			registerRoutes(commodityDetailRoute, handlers, []apiRoute{
-				{http.MethodGet, "/quote", "", handlers.GetCommodityQuote},
-				{http.MethodGet, "/kline", "", handlers.GetCommodityKlines},
-			})
-		})
+	registerRoutes(privateRoute, handlers, "/portfolio/{portfolio_id}/commodities/gold", "portfolio.commodity", []apiRoute{
+		{http.MethodGet, "/", "read", handlers.GetGold},
+		{http.MethodPost, "/", "create", handlers.CreateGold},
+		{http.MethodGet, "/transactions", "read", handlers.ListGoldTransactions},
+		{http.MethodPost, "/transactions", "create", handlers.CreateGoldTransaction},
+		{http.MethodGet, "/transactions/{transaction_id}", "read", handlers.GetGoldTransaction},
+		{http.MethodPut, "/transactions/{transaction_id}", "update", handlers.UpdateGoldTransaction},
+		{http.MethodDelete, "/transactions/{transaction_id}", "delete", handlers.DeleteGoldTransaction},
 	})
 
-	// stock market routes
-	privateRoute.Route("/stocks", func(stockRoute chi.Router) {
-		stockRoute.Use(middleware.RequireRule("market.stock.read"))
-		registerRoutes(stockRoute, handlers, []apiRoute{
-			{http.MethodGet, "/tickers", "", handlers.SearchTickers},
-		})
-		stockRoute.Route("/{ticker}", func(tickerRoute chi.Router) {
-			registerRoutes(tickerRoute, handlers, []apiRoute{
-				{http.MethodGet, "/quote", "", handlers.GetStockQuote},
-				{http.MethodGet, "/kline", "", handlers.GetStockKlines},
-				{http.MethodGet, "/fundamentals", "", handlers.GetFundamentals},
-			})
-		})
+	registerRoutes(privateRoute, handlers, "/admin/master-data", "master_data", []apiRoute{
+		{http.MethodGet, "/", "read", handlers.ListMasterData},
+		{http.MethodPut, "/{key}", "update", handlers.UpdateMasterData},
 	})
+
+	registerRoutes(privateRoute, handlers, "/admin/stocks", "", []apiRoute{
+		{http.MethodGet, "/", "", handlers.ListStock},
+		{http.MethodPost, "/", "", handlers.CreateStock},
+		{http.MethodGet, "/{ticker}", "", handlers.GetStock},
+		{http.MethodPut, "/{ticker}", "", handlers.UpdateStock},
+		{http.MethodPut, "/{ticker}/status", "", handlers.UpdateStockStatus},
+	}, middleware.RequireRule("stock.manage"))
+
+	registerRoutes(privateRoute, handlers, "/commodities/{commodity}", "", []apiRoute{
+		{http.MethodGet, "/quote", "", handlers.GetCommodityQuote},
+		{http.MethodGet, "/kline", "", handlers.GetCommodityKlines},
+	}, middleware.CommodityRule)
+
+	registerRoutes(privateRoute, handlers, "/stocks", "", []apiRoute{
+		{http.MethodGet, "/tickers", "", handlers.SearchTickers},
+		{http.MethodGet, "/{ticker}/quote", "", handlers.GetStockQuote},
+		{http.MethodGet, "/{ticker}/kline", "", handlers.GetStockKlines},
+		{http.MethodGet, "/{ticker}/fundamentals", "", handlers.GetFundamentals},
+	}, middleware.RequireRule("market.stock.read"))
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) { _ = response.Fail(w, http.StatusNotFound, "Not Found") })
 	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {

@@ -256,7 +256,7 @@ func (r *Repository) ListBondTransactions(ctx context.Context, userID string, po
 	}
 	defer rows.Close()
 
-	return scanBondTransactions(rows)
+	return scanRows[PortfolioBondTransaction](rows)
 }
 
 func (r *Repository) GetBondTransaction(ctx context.Context, userID string, portfolioID string, transactionID string) (PortfolioBondTransaction, error) {
@@ -405,18 +405,7 @@ func (r *Repository) ListBondSnapshots(ctx context.Context, userID string, portf
 	}
 	defer rows.Close()
 
-	snapshots := make([]PortfolioBondSnapshot, 0)
-	for rows.Next() {
-		var snapshot PortfolioBondSnapshot
-		if err := rows.StructScan(&snapshot); err != nil {
-			return nil, err
-		}
-		snapshots = append(snapshots, snapshot)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return snapshots, nil
+	return scanRows[PortfolioBondSnapshot](rows)
 }
 
 func (r *Repository) ensureBondAssetTx(ctx context.Context, tx *sqlx.Tx, input BondAssetCommand) (string, error) {
@@ -863,21 +852,6 @@ func bondTransactionSelectSQL() string {
 		JOIN assets a ON a.asset_id = pt.asset_id
 		JOIN asset_classes ac ON ac.asset_class_id = a.asset_class_id
 	`
-}
-
-func scanBondTransactions(rows *sqlx.Rows) ([]PortfolioBondTransaction, error) {
-	transactions := make([]PortfolioBondTransaction, 0)
-	for rows.Next() {
-		var bondTx PortfolioBondTransaction
-		if err := rows.StructScan(&bondTx); err != nil {
-			return nil, err
-		}
-		transactions = append(transactions, bondTx)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return transactions, nil
 }
 
 type bondHoldingRow struct {

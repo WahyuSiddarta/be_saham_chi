@@ -48,17 +48,11 @@ func (s *StockService) CreateStock(ctx context.Context, ticker, name string) (re
 		return repository.Stock{}, ErrInvalidStock
 	}
 	stock, err := s.repository.CreateStock(ctx, repository.Stock{Ticker: ticker, Name: name})
-	if err != nil {
-		return repository.Stock{}, fmt.Errorf("stockService.CreateStock: %w", err)
-	}
-	return stock, nil
+	return serviceResult(stock, err, "stockService.CreateStock")
 }
 func (s *StockService) ListStocks(ctx context.Context) ([]repository.Stock, error) {
 	stocks, err := s.repository.ListStocks(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("stockService.ListStocks: %w", err)
-	}
-	return stocks, nil
+	return serviceResult(stocks, err, "stockService.ListStocks")
 }
 func (s *StockService) SearchTickers(ctx context.Context, query string, limit int) ([]repository.Stock, error) {
 	query = strings.ToUpper(strings.TrimSpace(query))
@@ -69,20 +63,14 @@ func (s *StockService) SearchTickers(ctx context.Context, query string, limit in
 		limit = 50
 	}
 	stocks, err := s.repository.SearchActiveStocks(ctx, query, limit)
-	if err != nil {
-		return nil, fmt.Errorf("stockService.SearchTickers: %w", err)
-	}
-	return stocks, nil
+	return serviceResult(stocks, err, "stockService.SearchTickers")
 }
 func (s *StockService) GetStock(ctx context.Context, ticker string) (repository.Stock, error) {
 	stock, err := s.repository.GetStock(ctx, strings.ToUpper(strings.TrimSpace(ticker)))
 	if errors.Is(err, repository.ErrStockNotFound) {
 		return repository.Stock{}, ErrStockNotFound
 	}
-	if err != nil {
-		return repository.Stock{}, fmt.Errorf("stockService.GetStock: %w", err)
-	}
-	return stock, nil
+	return serviceResult(stock, err, "stockService.GetStock")
 }
 func (s *StockService) UpdateStockName(ctx context.Context, ticker, name string) (repository.Stock, error) {
 	ticker = strings.ToUpper(strings.TrimSpace(ticker))
@@ -94,20 +82,14 @@ func (s *StockService) UpdateStockName(ctx context.Context, ticker, name string)
 	if errors.Is(err, repository.ErrStockNotFound) {
 		return repository.Stock{}, ErrStockNotFound
 	}
-	if err != nil {
-		return repository.Stock{}, fmt.Errorf("stockService.UpdateStockName: %w", err)
-	}
-	return stock, nil
+	return serviceResult(stock, err, "stockService.UpdateStockName")
 }
 func (s *StockService) UpdateStockStatus(ctx context.Context, ticker string, active bool) (repository.Stock, error) {
 	stock, err := s.repository.UpdateStockStatus(ctx, strings.ToUpper(strings.TrimSpace(ticker)), active)
 	if errors.Is(err, repository.ErrStockNotFound) {
 		return repository.Stock{}, ErrStockNotFound
 	}
-	if err != nil {
-		return repository.Stock{}, fmt.Errorf("stockService.UpdateStockStatus: %w", err)
-	}
-	return stock, nil
+	return serviceResult(stock, err, "stockService.UpdateStockStatus")
 }
 func (s *StockService) GetKlines(ctx context.Context, ticker string, from, to time.Time) ([]repository.StockKline, error) {
 	stock, err := s.activeStock(ctx, ticker)
@@ -131,10 +113,7 @@ func (s *StockService) GetKlines(ctx context.Context, ticker string, from, to ti
 		return nil, fmt.Errorf("stockService.GetKlines -> StockRepository.UpsertKlines: %w", err)
 	}
 	items, err = s.repository.ListKlines(ctx, symbol, repository.SourceYahooFinance, "1d", from, to)
-	if err != nil {
-		return nil, fmt.Errorf("stockService.GetKlines -> StockRepository.ListKlinesAfterFetch: %w", err)
-	}
-	return items, nil
+	return serviceResult(items, err, "stockService.GetKlines -> StockRepository.ListKlinesAfterFetch")
 }
 
 func (s *StockService) GetQuote(ctx context.Context, ticker string) (repository.MarketPrice, error) {
@@ -143,10 +122,7 @@ func (s *StockService) GetQuote(ctx context.Context, ticker string) (repository.
 		return repository.MarketPrice{}, err
 	}
 	quote, err := s.yahooProvider.GetQuote(ctx, yahooStockSymbol(stock.Ticker))
-	if err != nil {
-		return repository.MarketPrice{}, fmt.Errorf("stockService.GetQuote -> Yahoo.GetQuote: %w", err)
-	}
-	return quote, nil
+	return serviceResult(quote, err, "stockService.GetQuote -> Yahoo.GetQuote")
 }
 
 func (s *StockService) GetFundamentals(ctx context.Context, ticker string) (repository.StockFundamentals, error) {
@@ -158,10 +134,7 @@ func (s *StockService) GetFundamentals(ctx context.Context, ticker string) (repo
 	if errors.Is(err, repository.ErrStockNotFound) {
 		return repository.StockFundamentals{}, ErrStockNotFound
 	}
-	if err != nil {
-		return repository.StockFundamentals{}, fmt.Errorf("stockService.GetFundamentals -> GetFundamentals: %w", err)
-	}
-	return fundamentals, nil
+	return serviceResult(fundamentals, err, "stockService.GetFundamentals -> GetFundamentals")
 }
 
 func (s *StockService) activeStock(ctx context.Context, ticker string) (repository.Stock, error) {

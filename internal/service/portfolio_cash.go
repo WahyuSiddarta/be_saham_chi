@@ -44,11 +44,7 @@ func (s *CashService) GetCash(ctx context.Context, userID string, portfolioID st
 	}
 
 	cash, err := s.repository.GetCash(ctx, userID, portfolioID)
-	if err != nil {
-		return repository.PortfolioCash{}, wrapPortfolioServiceError("portfolioService.GetCash -> PortfolioRepository.GetCash", err)
-	}
-
-	return cash, nil
+	return serviceResult(cash, err, "portfolioService.GetCash -> PortfolioRepository.GetCash")
 }
 
 func (s *CashService) CreateCashTransaction(ctx context.Context, userID string, portfolioID string, input CashTransactionInput) (repository.PortfolioCashTransaction, error) {
@@ -62,7 +58,7 @@ func (s *CashService) CreateCashTransaction(ctx context.Context, userID string, 
 		if errors.Is(err, repository.ErrCashAccountNotFound) {
 			return repository.PortfolioCashTransaction{}, fmt.Errorf("portfolioService.CreateCashTransaction -> PortfolioRepository.CreateCashTransaction: %w", ErrInvalidCashAccount)
 		}
-		return repository.PortfolioCashTransaction{}, wrapPortfolioServiceError("portfolioService.CreateCashTransaction -> PortfolioRepository.CreateCashTransaction", err)
+		return repository.PortfolioCashTransaction{}, wrapError("portfolioService.CreateCashTransaction -> PortfolioRepository.CreateCashTransaction", err)
 	}
 
 	return cashTx, nil
@@ -74,10 +70,7 @@ func (s *CashService) ListCashTransactions(ctx context.Context, userID string, p
 	}
 
 	transactions, err := s.repository.ListCashTransactions(ctx, userID, portfolioID)
-	if err != nil {
-		return nil, wrapPortfolioServiceError("portfolioService.ListCashTransactions -> PortfolioRepository.ListCashTransactions", err)
-	}
-	return transactions, nil
+	return serviceResult(transactions, err, "portfolioService.ListCashTransactions -> PortfolioRepository.ListCashTransactions")
 }
 
 func (s *CashService) GetCashTransaction(ctx context.Context, userID string, portfolioID string, transactionID string) (repository.PortfolioCashTransaction, error) {
@@ -89,10 +82,7 @@ func (s *CashService) GetCashTransaction(ctx context.Context, userID string, por
 	}
 
 	cashTx, err := s.repository.GetCashTransaction(ctx, userID, portfolioID, transactionID)
-	if err != nil {
-		return repository.PortfolioCashTransaction{}, wrapPortfolioServiceError("portfolioService.GetCashTransaction -> PortfolioRepository.GetCashTransaction", err)
-	}
-	return cashTx, nil
+	return serviceResult(cashTx, err, "portfolioService.GetCashTransaction -> PortfolioRepository.GetCashTransaction")
 }
 
 func (s *CashService) UpdateCashTransaction(ctx context.Context, userID string, portfolioID string, transactionID string, input CashTransactionInput) (repository.PortfolioCashTransaction, error) {
@@ -109,7 +99,7 @@ func (s *CashService) UpdateCashTransaction(ctx context.Context, userID string, 
 		if errors.Is(err, repository.ErrCashAccountNotFound) {
 			return repository.PortfolioCashTransaction{}, fmt.Errorf("portfolioService.UpdateCashTransaction -> PortfolioRepository.UpdateCashTransaction: %w", ErrInvalidCashAccount)
 		}
-		return repository.PortfolioCashTransaction{}, wrapPortfolioServiceError("portfolioService.UpdateCashTransaction -> PortfolioRepository.UpdateCashTransaction", err)
+		return repository.PortfolioCashTransaction{}, wrapError("portfolioService.UpdateCashTransaction -> PortfolioRepository.UpdateCashTransaction", err)
 	}
 	return cashTx, nil
 }
@@ -123,7 +113,7 @@ func (s *CashService) DeleteCashTransaction(ctx context.Context, userID string, 
 	}
 
 	err := s.repository.DeleteCashTransaction(ctx, userID, portfolioID, transactionID)
-	return wrapPortfolioServiceError("portfolioService.DeleteCashTransaction -> PortfolioRepository.DeleteCashTransaction", err)
+	return wrapError("portfolioService.DeleteCashTransaction -> PortfolioRepository.DeleteCashTransaction", err)
 }
 
 func (s *CashService) ListCashSnapshots(ctx context.Context, userID string, portfolioID string, from time.Time, to time.Time) ([]repository.PortfolioCashSnapshot, error) {
@@ -136,10 +126,7 @@ func (s *CashService) ListCashSnapshots(ctx context.Context, userID string, port
 	}
 
 	snapshots, err := s.repository.ListCashSnapshots(ctx, userID, portfolioID, from, to)
-	if err != nil {
-		return nil, wrapPortfolioServiceError("portfolioService.ListCashSnapshots -> PortfolioRepository.ListCashSnapshots", err)
-	}
-	return snapshots, nil
+	return serviceResult(snapshots, err, "portfolioService.ListCashSnapshots -> PortfolioRepository.ListCashSnapshots")
 }
 func validateCashTransactionInput(portfolioID string, input CashTransactionInput) (repository.CashTransactionCommand, error) {
 	if strings.TrimSpace(portfolioID) == "" {

@@ -16,14 +16,21 @@ type apiRoute struct {
 	handle func(http.ResponseWriter, *http.Request) error
 }
 
-// registerRoutes applies each route's permission and the shared response adapter.
-// An empty rule adds no permission check; parent middleware still applies.
-func registerRoutes(router chi.Router, handlers handler.Handler, routes []apiRoute) {
-	for _, route := range routes {
-		target := router
-		if route.rule != "" {
-			target = router.With(middleware.RequireRule(route.rule))
+// registerRoutes mounts a resource group and applies its permission prefix.
+// Empty route rules rely on the supplied or inherited middleware.
+func registerRoutes(router chi.Router, handlers handler.Handler, path, permissionPrefix string, routes []apiRoute, middlewares ...func(http.Handler) http.Handler) {
+	router.Route(path, func(group chi.Router) {
+		group.Use(middlewares...)
+		for _, route := range routes {
+			target := group
+			if route.rule != "" {
+				rule := route.rule
+				if permissionPrefix != "" {
+					rule = permissionPrefix + "." + rule
+				}
+				target = group.With(middleware.RequireRule(rule))
+			}
+			target.MethodFunc(route.method, route.path, handlers.Handle(route.handle))
 		}
-		target.MethodFunc(route.method, route.path, handlers.Handle(route.handle))
-	}
+	})
 }
