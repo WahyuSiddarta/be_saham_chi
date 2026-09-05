@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/WahyuSiddarta/be_saham_chi/internal/auth"
 	applogger "github.com/WahyuSiddarta/be_saham_chi/internal/logger"
+	"github.com/WahyuSiddarta/be_saham_chi/internal/middleware"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/repository"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/response"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/service"
@@ -16,7 +16,7 @@ import (
 
 func (h Handler) GetCommodityQuote(w http.ResponseWriter, req *http.Request) error {
 	commodity := chi.URLParam(req, "commodity")
-	userID, ok := auth.UserIDFromContext(req.Context())
+	userID, ok := middleware.UserIDFromContext(req.Context())
 	if !ok {
 		return response.Fail(w, http.StatusUnauthorized, "missing user_id")
 	}

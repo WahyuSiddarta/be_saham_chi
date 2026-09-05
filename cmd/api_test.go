@@ -160,12 +160,79 @@ func TestCORSPreflightBypassesAuthentication(t *testing.T) {
 }
 func TestPublicAuthRejectsInvalidJSONWithoutDatabase(t *testing.T) {
 	router := testApplication().routes()
-	for _, path := range []string{"/api/v1/public/auth/login", "/api/v1/public/auth/register", "/auth/login"} {
+	for _, path := range []string{"/api/v1/public/auth/login", "/api/v1/public/auth/register"} {
 		req := httptest.NewRequest("POST", path, strings.NewReader(`{"email":"a@example.com","email":"b@example.com"}`))
 		res := httptest.NewRecorder()
 		router.ServeHTTP(res, req)
 		if res.Code != 400 {
 			t.Fatalf("%s: status=%d body=%s", path, res.Code, res.Body)
+		}
+	}
+}
+
+func TestAllRoutesUseVersionPrefix(t *testing.T) {
+	router := testApplication().routes()
+	if err := chi.Walk(router.(chi.Routes), func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if !strings.HasPrefix(route, "/api/v1/") {
+			t.Errorf("route outside /api/v1: %s %s", method, route)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, route := range []struct{ method, path string }{
+		{"GET", "/health"},
+		{"POST", "/auth/login"},
+		{"GET", "/protected"},
+		{"GET", "/openapi.yaml"},
+		{"GET", "/docs"},
+		{"GET", "/docs/"},
+	} {
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, httptest.NewRequest(route.method, route.path, nil))
+		if res.Code != http.StatusNotFound {
+			t.Errorf("old route %s %s: status=%d", route.method, route.path, res.Code)
+		}
+	}
+}
+
+func TestPublicUtilityRoutes(t *testing.T) {
+	// ServeFile resolves docs/openapi.yaml from the application working directory.
+	t.Chdir("..")
+	router := testApplication().routes()
+	for _, tc := range []struct{ path, content string }{
+		{"/api/v1/public/health", `"service":"healthy"`},
+		{"/api/v1/public/docs", `data-url="/api/v1/public/openapi.yaml"`},
+		{"/api/v1/public/docs/", `data-url="/api/v1/public/openapi.yaml"`},
+		{"/api/v1/public/openapi.yaml", "openapi: 3.0.3"},
+	} {
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, httptest.NewRequest(http.MethodGet, tc.path, nil))
+		if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), tc.content) {
+			t.Errorf("%s: status=%d expected content=%q", tc.path, res.Code, tc.content)
+		}
+	}
+}
+
+func TestMovedClaimsRouteStillRequiresAuthentication(t *testing.T) {
+	app := testApplication()
+	router := app.routes()
+	token, _, err := auth.GenerateToken(app.config.jwt, repository.User{ID: "user-1"}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		token  string
+		status int
+	}{{"", http.StatusUnauthorized}, {token, http.StatusOK}} {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/protected", nil)
+		if tc.token != "" {
+			req.Header.Set("Authorization", "Bearer "+tc.token)
+		}
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, req)
+		if res.Code != tc.status {
+			t.Fatalf("claims route: status=%d want=%d body=%s", res.Code, tc.status, res.Body)
 		}
 	}
 }

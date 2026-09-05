@@ -1,29 +1,29 @@
-package auth
+package middleware
 
 import (
 	"context"
 	"net/http"
 	"strings"
 
+	"github.com/WahyuSiddarta/be_saham_chi/internal/auth"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/response"
 
 	"github.com/go-chi/chi/v5"
 )
 
-type claimsContextKey struct{}
-
-func Middleware(config Config) func(http.Handler) http.Handler {
+// Authenticate verifies a bearer token and stores its claims in the request context.
+func Authenticate(config auth.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tokenText, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 			if !ok || strings.TrimSpace(tokenText) == "" {
-				writeUnauthorized(w, "missing bearer token")
+				_ = response.Fail(w, http.StatusUnauthorized, "missing bearer token")
 				return
 			}
 
-			claims, err := ParseToken(config, strings.TrimSpace(tokenText))
+			claims, err := auth.ParseToken(config, strings.TrimSpace(tokenText))
 			if err != nil {
-				writeUnauthorized(w, "invalid bearer token")
+				_ = response.Fail(w, http.StatusUnauthorized, "invalid bearer token")
 				return
 			}
 
@@ -31,20 +31,6 @@ func Middleware(config Config) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
-}
-
-func writeUnauthorized(w http.ResponseWriter, message string) {
-	_ = response.Fail(w, http.StatusUnauthorized, message)
-}
-
-func ClaimsFromContext(ctx context.Context) (Claims, bool) {
-	claims, ok := ctx.Value(claimsContextKey{}).(Claims)
-	return claims, ok
-}
-
-func UserIDFromContext(ctx context.Context) (string, bool) {
-	claims, ok := ClaimsFromContext(ctx)
-	return claims.UserID, ok && claims.UserID != ""
 }
 
 func RequireRule(required string) func(http.Handler) http.Handler {

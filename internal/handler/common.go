@@ -5,14 +5,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/WahyuSiddarta/be_saham_chi/internal/auth"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/helper"
+	"github.com/WahyuSiddarta/be_saham_chi/internal/middleware"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/repository"
 	binding "github.com/WahyuSiddarta/be_saham_chi/internal/request"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/response"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/service"
 
-	"github.com/go-chi/chi/v5/middleware"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
 )
 
@@ -63,7 +63,7 @@ type Domains struct {
 // Handle logs response errors and writes a fallback only before a response starts.
 func (h Handler) Handle(next func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writer := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+		writer := chimiddleware.NewWrapResponseWriter(w, r.ProtoMajor)
 		if err := next(writer, r); err != nil {
 			h.logRequestError(r, http.StatusInternalServerError, "response failed", err)
 			if writer.Status() == 0 {
@@ -78,7 +78,7 @@ func (h Handler) logRequestError(req *http.Request, status int, message string, 
 	if status >= http.StatusInternalServerError {
 		event = h.log.Error()
 	}
-	event.Err(err).Int("status_code", status).Str("request_id", middleware.GetReqID(req.Context())).Str("method", req.Method).Str("path", req.URL.Path).Str("response_message", message).Msg("request failed")
+	event.Err(err).Int("status_code", status).Str("request_id", chimiddleware.GetReqID(req.Context())).Str("method", req.Method).Str("path", req.URL.Path).Str("response_message", message).Msg("request failed")
 }
 
 type httpErrorRule struct {
@@ -190,7 +190,7 @@ func bindPortfolioRequest(req *http.Request) (service.PortfolioInput, error) {
 }
 
 func requiredUserID(req *http.Request) (string, error) {
-	userID, ok := auth.UserIDFromContext(req.Context())
+	userID, ok := middleware.UserIDFromContext(req.Context())
 	if !ok {
 		return "", errors.New("missing user_id")
 	}

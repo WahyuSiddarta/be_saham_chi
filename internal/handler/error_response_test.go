@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"github.com/WahyuSiddarta/be_saham_chi/internal/auth"
+	"github.com/WahyuSiddarta/be_saham_chi/internal/middleware"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/repository"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/response"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/service"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
 )
@@ -41,7 +43,7 @@ func TestHandlerValidationWritesFailure(t *testing.T) {
 		message   string
 	}{
 		{"register body", h.Register, "/", "{", 400, "invalid request body"},
-		{"login email", h.LoginV2, "/", `{}`, 400, "email is required"},
+		{"login email", h.Login, "/", `{}`, 400, "email is required"},
 		{"stock body", h.CreateStock, "/", "{", 400, "invalid request body"},
 		{"master data body", h.UpdateMasterData, "/", "{", 400, "invalid request body"},
 		{"stock from", h.GetStockKlines, "/?from=bad", "", 400, "invalid from date"},
@@ -95,7 +97,7 @@ func TestAuthenticatedHandlerErrorsPreserveMessages(t *testing.T) {
 				next = h.CreateGold
 			}
 			router := chi.NewRouter()
-			router.Use(auth.Middleware(config))
+			router.Use(middleware.Authenticate(config))
 			router.Post("/portfolios/{portfolio_id}", h.Handle(next))
 			req := httptest.NewRequest(http.MethodPost, "/portfolios/p-1", strings.NewReader(tc.body))
 			req.Header.Set("Authorization", "Bearer "+token)

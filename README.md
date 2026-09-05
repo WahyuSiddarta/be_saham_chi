@@ -5,19 +5,39 @@ sqlx repository. The Echo project remains available as the contract reference.
 
 ## Routing
 
-`cmd/api.go` registers nested `Route` groups under `/api/v1`:
+`cmd/api.go` registers `/api/v1/public` and `/api/v1/private` directly,
+with resource groups nested inside them:
 
 - `/public/auth`: registration and login.
+- `/public/health`: API health.
+- `/public/protected`: token claims example, with its own JWT middleware.
+- `/public/docs` and `/public/openapi.yaml`: API documentation.
 - `/private`: JWT middleware inherited by every child route.
 - `/private/admin`: master data and stock administration.
 - `/private/stocks` and `/private/commodities/{commodity}`: market data.
 - `/private/portfolios`: portfolio CRUD.
 - `/private/portfolio/{portfolio_id}`: cash, bonds, gold, and their transactions.
 
+`cmd/common.go` registers route entries containing the HTTP method, relative path,
+permission, and handler. It applies the permission check and shared response
+adapter once. An empty permission inherits the route group middleware.
+
 Shared ACLs sit on their resource groups; different read/create/update/delete
 permissions remain on individual operations. Existing V2 URLs and permissions
-are retained. The Chi OpenAPI contract is served at `/openapi.yaml`, with an
-interactive viewer at `/docs`.
+are retained. The Chi OpenAPI contract is served at `/api/v1/public/openapi.yaml`,
+with an interactive viewer at `/api/v1/public/docs`. All routes are under
+`/api/v1`; the former root-level health, login, claims, and documentation URLs
+are no longer registered. Login uses `/api/v1/public/auth/login`.
+
+## Middleware
+
+`internal/middleware` owns request IDs, HTTP request logging, panic recovery,
+CORS, bearer-token authentication, and permission checks. The router applies
+`RequestID`, `RequestLogger`, `Recover`, and `CORS` in that order, then attaches
+`Authenticate`, `RequireRule`, and `CommodityRule` to the relevant route groups.
+Request logging and recovery receive the configured logger. JWT signing and
+validation remain in `internal/auth`; verified request claims are accessed through
+`middleware.ClaimsFromContext` and `middleware.UserIDFromContext`.
 
 ## API responses
 

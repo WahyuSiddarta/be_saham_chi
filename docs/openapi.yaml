@@ -2,7 +2,24 @@ openapi: 3.0.3
 info:
   title: be_saham_chi API
   version: 0.1.0
-  description: API for stock portfolio tracking, commodity market quotes, and portfolio cash management.
+  description: |
+    API for stock portfolio tracking, commodity market quotes, and portfolio cash management.
+
+    All routes are under `/api/v1`. API documentation is available at
+    `/api/v1/public/docs`, with this contract at `/api/v1/public/openapi.yaml`.
+
+    JSON responses use one shared envelope. Successful responses have `status: ok`
+    and a `data` payload; list results are directly inside `data`, and successful
+    deletes return `data: null`. Error responses have `status: nok` with the public
+    error message directly in `data`, for example
+    `{"status":"nok","data":"invalid request body"}`. HTTP status codes indicate
+    the outcome. Error messages vary by endpoint and validation failure; internal
+    causes are logged separately from the public response.
+
+    Unknown routes return HTTP 404 with `data: "Not Found"`; unsupported methods
+    return HTTP 405 with `data: "Method Not Allowed"`. Unexpected server failures
+    use HTTP 500 with `data: "Internal Server Error"`. CORS preflight requests with
+    an Origin header return HTTP 204 without a JSON body.
 servers:
   - url: http://localhost:8080
     description: Local development
@@ -33,7 +50,7 @@ x-tagGroups:
     tags:
       - Master Data
 paths:
-  /health:
+  /api/v1/public/health:
     get:
       tags:
         - Health
@@ -45,6 +62,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
+  /api/v1/public/protected:
+    get:
+      tags: [Auth]
+      summary: Inspect authenticated token claims
+      security: [{bearerAuth: []}]
+      responses:
+        "200":
+          description: Authenticated user claims.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ProtectedResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
   /api/v1/public/auth/register:
     post:
       tags:
@@ -236,6 +265,7 @@ paths:
                 $ref: "#/components/schemas/StockListResponse"
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
     post:
       tags:
         - Stocks
@@ -262,6 +292,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /api/v1/private/admin/stocks/{ticker}:
     get:
       tags: [Stocks]
@@ -278,6 +309,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
     put:
       tags: [Stocks]
       summary: Update a stock name
@@ -300,6 +332,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /api/v1/private/admin/stocks/{ticker}/status:
     put:
       tags: [Stocks]
@@ -323,6 +356,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /api/v1/private/commodities/{commodity}/kline:
     get:
       tags:
@@ -1405,42 +1439,185 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            invalidBody:
+              value:
+                status: nok
+                data: "invalid request body"
+            missingEmail:
+              value:
+                status: nok
+                data: "email is required"
+            invalidEmail:
+              value:
+                status: nok
+                data: "invalid email"
+            missingPassword:
+              value:
+                status: nok
+                data: "password is required"
+            invalidStock:
+              value:
+                status: nok
+                data: "ticker and name are required"
+            invalidDate:
+              value:
+                status: nok
+                data: "invalid transaction_date"
+            invalidStockRange:
+              value:
+                status: nok
+                data: "from must not be after to"
     Unauthorized:
       description: Authentication failed or bearer token is missing.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            missingToken:
+              value:
+                status: nok
+                data: "missing bearer token"
+            invalidToken:
+              value:
+                status: nok
+                data: "invalid bearer token"
+            invalidCredentials:
+              value:
+                status: nok
+                data: "invalid email or password"
+            missingUser:
+              value:
+                status: nok
+                data: "missing user_id"
+            missingClaims:
+              value:
+                status: nok
+                data: "missing authentication claims"
     Forbidden:
       description: Authenticated user is not allowed to access this resource.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            missingPermission:
+              value:
+                status: nok
+                data: "forbidden"
+            bannedUser:
+              value:
+                status: nok
+                data: "user is banned"
     Conflict:
       description: Request conflicts with current resource state.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            duplicatePortfolio:
+              value:
+                status: nok
+                data: "portfolio name already exists"
+            mainPortfolio:
+              value:
+                status: nok
+                data: "main portfolio cannot be deleted"
+            goldQuantity:
+              value:
+                status: nok
+                data: "insufficient gold quantity at transaction date"
     NotFound:
       description: Resource was not found.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            portfolio:
+              value:
+                status: nok
+                data: "portfolio not found"
+            stock:
+              value:
+                status: nok
+                data: "stock not found"
+            commodity:
+              value:
+                status: nok
+                data: "commodity not found"
+            route:
+              value:
+                status: nok
+                data: "Not Found"
     BadGateway:
       description: Upstream market data provider failed.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            stockQuote:
+              value:
+                status: nok
+                data: "failed to get stock quote"
+            stockKline:
+              value:
+                status: nok
+                data: "failed to get stock kline"
+            commodityQuote:
+              value:
+                status: nok
+                data: "failed to fetch commodity quote"
+            commodityKline:
+              value:
+                status: nok
+                data: "failed to fetch commodity kline"
     InternalServerError:
       description: Internal server error.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            unexpected:
+              value:
+                status: nok
+                data: "Internal Server Error"
+            register:
+              value:
+                status: nok
+                data: "failed to register user"
+            login:
+              value:
+                status: nok
+                data: "failed to login"
+            portfolioDelete:
+              value:
+                status: nok
+                data: "failed to delete portfolio"
+            stockCreate:
+              value:
+                status: nok
+                data: "failed to create stock"
+            stockList:
+              value:
+                status: nok
+                data: "failed to list stocks"
+            stockGet:
+              value:
+                status: nok
+                data: "failed to get stock"
+            stockUpdate:
+              value:
+                status: nok
+                data: "failed to update stock"
+            stockStatus:
+              value:
+                status: nok
+                data: "failed to update stock status"
   schemas:
     StatusOK:
       type: string
@@ -1522,19 +1699,21 @@ components:
         data:
           $ref: "#/components/schemas/MasterData"
     ErrorResponse:
-      type: "object"
+      type: object
+      description: Shared failure envelope. Current API handlers and middleware return a public error message in data. The response helper omits data when no payload is supplied.
+      additionalProperties: false
       required:
-        - "status"
+        - status
       properties:
         status:
           $ref: "#/components/schemas/StatusNOK"
         data:
-          oneOf:
-            -
-              type: "string"
-            -
-              type: "object"
-          example: "invalid request body"
+          type: string
+          description: Public error message. There is no top-level message field or nested error envelope.
+          example: invalid request body
+      example:
+        status: nok
+        data: invalid request body
     RegisterRequest:
       type: object
       required:
@@ -1641,7 +1820,6 @@ components:
         - portfolio_id
         - name
         - base_currency_code
-        - is_main
         - created_at
       properties:
         portfolio_id:
@@ -1652,9 +1830,6 @@ components:
         base_currency_code:
           type: string
           example: IDR
-        is_main:
-          type: boolean
-          example: true
         created_at:
           type: string
           format: date-time
@@ -3226,3 +3401,20 @@ components:
           nullable: true
           enum:
             - null
+
+    ProtectedResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status: {$ref: "#/components/schemas/StatusOK"}
+        data:
+          type: object
+          required: [message, user_id, email, role_id, rules]
+          properties:
+            message: {type: string, enum: [authenticated]}
+            user_id: {type: string}
+            email: {type: string, format: email}
+            role_id: {type: integer}
+            rules:
+              type: array
+              items: {type: string}

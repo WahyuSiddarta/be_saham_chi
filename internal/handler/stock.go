@@ -102,6 +102,7 @@ func (h Handler) CreateStock(w http.ResponseWriter, req *http.Request) error {
 	}
 	return response.Success(w, http.StatusCreated, StockResponse{StockItemResponse: newStockItemResponse(stock)})
 }
+
 func (h Handler) ListStock(w http.ResponseWriter, req *http.Request) error {
 	stocks, err := h.stockService.ListStocks(req.Context())
 	if err != nil {
@@ -134,6 +135,7 @@ func (h Handler) SearchTickers(w http.ResponseWriter, req *http.Request) error {
 	}
 	return response.Success(w, http.StatusOK, data)
 }
+
 func (h Handler) GetStock(w http.ResponseWriter, req *http.Request) error {
 	stock, err := h.stockService.GetStock(req.Context(), chi.URLParam(req, "ticker"))
 	if errors.Is(err, service.ErrStockNotFound) {
@@ -166,6 +168,7 @@ func (h Handler) UpdateStock(w http.ResponseWriter, req *http.Request) error {
 	}
 	return response.Success(w, http.StatusOK, StockResponse{StockItemResponse: newStockItemResponse(stock)})
 }
+
 func (h Handler) UpdateStockStatus(w http.ResponseWriter, req *http.Request) error {
 	var request UpdateStockStatusRequest
 	if err := binding.BindJSON(req.Body, &request); err != nil || request.Active == nil {
@@ -182,6 +185,7 @@ func (h Handler) UpdateStockStatus(w http.ResponseWriter, req *http.Request) err
 	}
 	return response.Success(w, http.StatusOK, StockResponse{StockItemResponse: newStockItemResponse(stock)})
 }
+
 func (h Handler) GetStockKlines(w http.ResponseWriter, req *http.Request) error {
 	from, to, err := stockKlineDateRange(req)
 	if err != nil {

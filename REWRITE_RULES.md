@@ -49,7 +49,8 @@ package and domain file. Do not preserve the scattered placement from
 | HTTP parsing, validation, and response mapping | `internal/handler` | `portfolio.go` |
 | Business rules and workflow orchestration | `internal/service` | `portfolio.go` |
 | SQL and persistence mapping | `internal/repository` | `portfolio.go` |
-| Authentication and authorization primitives | `internal/auth` | `jwt.go`, `middleware.go` |
+| JWT signing and validation | `internal/auth` | `jwt.go` |
+| HTTP middleware, authentication, authorization, and request context | `internal/middleware` | `auth.go`, `common.go`, `cors.go`, `recover.go`, `logger.go` |
 | Shared JSON response writing | `internal/response` | `json.go` |
 | Application wiring and route registration | `cmd` | `api.go` |
 

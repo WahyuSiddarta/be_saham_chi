@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/WahyuSiddarta/be_saham_chi/internal/auth"
+	"github.com/WahyuSiddarta/be_saham_chi/internal/middleware"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/response"
 )
 
@@ -17,7 +17,7 @@ func (h Handler) Health(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h Handler) ProtectedExample(w http.ResponseWriter, r *http.Request) {
-	claims, ok := auth.ClaimsFromContext(r.Context())
+	claims, ok := middleware.ClaimsFromContext(r.Context())
 	if !ok {
 		h.fail(w, http.StatusUnauthorized, "missing authentication claims")
 		return

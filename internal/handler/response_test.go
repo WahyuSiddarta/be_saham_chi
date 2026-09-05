@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/WahyuSiddarta/be_saham_chi/internal/auth"
+	"github.com/WahyuSiddarta/be_saham_chi/internal/middleware"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/repository"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/response"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/service"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
 )
@@ -91,7 +93,7 @@ func TestDeleteReturnsSuccessEnvelope(t *testing.T) {
 		t.Fatal(err)
 	}
 	router := chi.NewRouter()
-	router.Use(auth.Middleware(config))
+	router.Use(middleware.Authenticate(config))
 	router.Delete("/portfolios/{portfolio_id}", h.Handle(h.DeletePortfolio))
 	req := httptest.NewRequest(http.MethodDelete, "/portfolios/p-1", strings.NewReader(`{"target_portfolio_id":"p-2"}`))
 	req.Header.Set("Authorization", "Bearer "+token)
