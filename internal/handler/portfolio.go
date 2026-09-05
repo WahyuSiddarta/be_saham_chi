@@ -33,7 +33,7 @@ func (h Handler) ListPortfolio(w http.ResponseWriter, req *http.Request) error {
 		return portfolioHTTPError(err, "failed to list portfolios")
 	}
 
-	return response.JSON(w, http.StatusOK, NewPortfolioListResponse(portfolios))
+	return response.Success(w, http.StatusOK, NewPortfolioListResponse(portfolios))
 }
 
 func (h Handler) GetPortfolio(w http.ResponseWriter, req *http.Request) error {
@@ -47,7 +47,7 @@ func (h Handler) GetPortfolio(w http.ResponseWriter, req *http.Request) error {
 		return portfolioHTTPError(err, "failed to get portfolio")
 	}
 
-	return response.JSON(w, http.StatusOK, NewPortfolioResponse(portfolio))
+	return response.Success(w, http.StatusOK, NewPortfolioResponse(portfolio))
 }
 
 func (h Handler) CreatePortfolio(w http.ResponseWriter, req *http.Request) error {
@@ -66,7 +66,7 @@ func (h Handler) CreatePortfolio(w http.ResponseWriter, req *http.Request) error
 		return portfolioHTTPError(err, "failed to create portfolio")
 	}
 
-	return response.JSON(w, http.StatusCreated, NewPortfolioResponse(portfolio))
+	return response.Success(w, http.StatusCreated, NewPortfolioResponse(portfolio))
 }
 
 func (h Handler) UpdatePortfolio(w http.ResponseWriter, req *http.Request) error {
@@ -85,7 +85,7 @@ func (h Handler) UpdatePortfolio(w http.ResponseWriter, req *http.Request) error
 		return portfolioHTTPError(err, "failed to update portfolio")
 	}
 
-	return response.JSON(w, http.StatusOK, NewPortfolioResponse(portfolio))
+	return response.Success(w, http.StatusOK, NewPortfolioResponse(portfolio))
 }
 
 func (h Handler) DeletePortfolio(w http.ResponseWriter, req *http.Request) error {
@@ -104,16 +104,12 @@ func (h Handler) DeletePortfolio(w http.ResponseWriter, req *http.Request) error
 		return portfolioHTTPError(err, "failed to delete portfolio")
 	}
 
-	return response.NoContent(w, http.StatusNoContent)
+	return response.Success(w, http.StatusOK, nil)
 }
 
-type PortfolioListResponse struct {
-	Status string                  `json:"status"`
-	Data   []PortfolioItemResponse `json:"data"`
-}
+type PortfolioListResponse = []PortfolioItemResponse
 
 type PortfolioResponse struct {
-	Status string `json:"status"`
 	PortfolioItemResponse
 }
 
@@ -132,14 +128,11 @@ func NewPortfolioListResponse(portfolios []repository.Portfolio) PortfolioListRe
 	for _, portfolio := range portfolios {
 		response = append(response, newPortfolioItemResponse(portfolio))
 	}
-	return PortfolioListResponse{
-		Status: "ok",
-		Data:   response,
-	}
+	return response
 }
 
 func NewPortfolioResponse(portfolio repository.Portfolio) PortfolioResponse {
-	return PortfolioResponse{Status: "ok", PortfolioItemResponse: newPortfolioItemResponse(portfolio)}
+	return PortfolioResponse{PortfolioItemResponse: newPortfolioItemResponse(portfolio)}
 }
 
 func newPortfolioItemResponse(portfolio repository.Portfolio) PortfolioItemResponse {

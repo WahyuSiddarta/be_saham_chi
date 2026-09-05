@@ -83,7 +83,7 @@ func (h Handler) CreateBond(w http.ResponseWriter, req *http.Request) error {
 		return bondHTTPError(err, "failed to create bond")
 	}
 
-	return response.JSON(w, http.StatusCreated, NewBondResponse(bond))
+	return response.Success(w, http.StatusCreated, NewBondResponse(bond))
 }
 
 func (h Handler) ListBonds(w http.ResponseWriter, req *http.Request) error {
@@ -97,7 +97,7 @@ func (h Handler) ListBonds(w http.ResponseWriter, req *http.Request) error {
 		return bondHTTPError(err, "failed to list bonds")
 	}
 
-	return response.JSON(w, http.StatusOK, NewBondListResponse(bonds))
+	return response.Success(w, http.StatusOK, NewBondListResponse(bonds))
 }
 
 func (h Handler) GetBond(w http.ResponseWriter, req *http.Request) error {
@@ -111,7 +111,7 @@ func (h Handler) GetBond(w http.ResponseWriter, req *http.Request) error {
 		return bondHTTPError(err, "failed to get bond")
 	}
 
-	return response.JSON(w, http.StatusOK, NewBondResponse(bond))
+	return response.Success(w, http.StatusOK, NewBondResponse(bond))
 }
 
 func (h Handler) UpdateBond(w http.ResponseWriter, req *http.Request) error {
@@ -130,7 +130,7 @@ func (h Handler) UpdateBond(w http.ResponseWriter, req *http.Request) error {
 		return bondHTTPError(err, "failed to update bond")
 	}
 
-	return response.JSON(w, http.StatusOK, NewBondResponse(bond))
+	return response.Success(w, http.StatusOK, NewBondResponse(bond))
 }
 
 func (h Handler) AdjustBondValuation(w http.ResponseWriter, req *http.Request) error {
@@ -149,7 +149,7 @@ func (h Handler) AdjustBondValuation(w http.ResponseWriter, req *http.Request) e
 		return bondHTTPError(err, "failed to adjust bond valuation")
 	}
 
-	return response.JSON(w, http.StatusOK, NewBondResponse(bond))
+	return response.Success(w, http.StatusOK, NewBondResponse(bond))
 }
 
 func (h Handler) ListBondSnapshots(w http.ResponseWriter, req *http.Request) error {
@@ -172,7 +172,7 @@ func (h Handler) ListBondSnapshots(w http.ResponseWriter, req *http.Request) err
 		return bondHTTPError(err, "failed to list bond snapshots")
 	}
 
-	return response.JSON(w, http.StatusOK, NewBondSnapshotListResponse(snapshots))
+	return response.Success(w, http.StatusOK, NewBondSnapshotListResponse(snapshots))
 }
 
 func (h Handler) CreateBondTransaction(w http.ResponseWriter, req *http.Request) error {
@@ -191,7 +191,7 @@ func (h Handler) CreateBondTransaction(w http.ResponseWriter, req *http.Request)
 		return bondHTTPError(err, "failed to create bond transaction")
 	}
 
-	return response.JSON(w, http.StatusCreated, NewBondTransactionResponse(bondTx))
+	return response.Success(w, http.StatusCreated, NewBondTransactionResponse(bondTx))
 }
 
 func (h Handler) ListBondTransactions(w http.ResponseWriter, req *http.Request) error {
@@ -205,7 +205,7 @@ func (h Handler) ListBondTransactions(w http.ResponseWriter, req *http.Request) 
 		return bondHTTPError(err, "failed to list bond transactions")
 	}
 
-	return response.JSON(w, http.StatusOK, NewBondTransactionListResponse(transactions))
+	return response.Success(w, http.StatusOK, NewBondTransactionListResponse(transactions))
 }
 
 func (h Handler) GetBondTransaction(w http.ResponseWriter, req *http.Request) error {
@@ -219,7 +219,7 @@ func (h Handler) GetBondTransaction(w http.ResponseWriter, req *http.Request) er
 		return bondHTTPError(err, "failed to get bond transaction")
 	}
 
-	return response.JSON(w, http.StatusOK, NewBondTransactionResponse(bondTx))
+	return response.Success(w, http.StatusOK, NewBondTransactionResponse(bondTx))
 }
 
 func (h Handler) UpdateBondTransaction(w http.ResponseWriter, req *http.Request) error {
@@ -238,7 +238,7 @@ func (h Handler) UpdateBondTransaction(w http.ResponseWriter, req *http.Request)
 		return bondHTTPError(err, "failed to update bond transaction")
 	}
 
-	return response.JSON(w, http.StatusOK, NewBondTransactionResponse(bondTx))
+	return response.Success(w, http.StatusOK, NewBondTransactionResponse(bondTx))
 }
 
 func (h Handler) DeleteBondTransaction(w http.ResponseWriter, req *http.Request) error {
@@ -252,16 +252,12 @@ func (h Handler) DeleteBondTransaction(w http.ResponseWriter, req *http.Request)
 		return bondHTTPError(err, "failed to delete bond transaction")
 	}
 
-	return response.NoContent(w, http.StatusNoContent)
+	return response.Success(w, http.StatusOK, nil)
 }
 
-type BondListResponse struct {
-	Status string             `json:"status"`
-	Data   []BondItemResponse `json:"data"`
-}
+type BondListResponse = []BondItemResponse
 
 type BondResponse struct {
-	Status string `json:"status"`
 	BondItemResponse
 }
 
@@ -328,13 +324,9 @@ type BondValuationResponse struct {
 	CreatedAt     string  `json:"created_at,omitempty"`
 }
 
-type BondTransactionListResponse struct {
-	Status string                        `json:"status"`
-	Data   []BondTransactionItemResponse `json:"data"`
-}
+type BondTransactionListResponse = []BondTransactionItemResponse
 
 type BondTransactionResponse struct {
-	Status string `json:"status"`
 	BondTransactionItemResponse
 }
 
@@ -370,14 +362,11 @@ func NewBondListResponse(bonds []repository.PortfolioBond) BondListResponse {
 	for _, bond := range bonds {
 		response = append(response, newBondItemResponse(bond))
 	}
-	return BondListResponse{
-		Status: "ok",
-		Data:   response,
-	}
+	return response
 }
 
 func NewBondResponse(bond repository.PortfolioBond) BondResponse {
-	return BondResponse{Status: "ok", BondItemResponse: newBondItemResponse(bond)}
+	return BondResponse{BondItemResponse: newBondItemResponse(bond)}
 }
 
 func newBondItemResponse(bond repository.PortfolioBond) BondItemResponse {
@@ -459,14 +448,11 @@ func NewBondTransactionListResponse(transactions []repository.PortfolioBondTrans
 	for _, bondTx := range transactions {
 		response = append(response, newBondTransactionItemResponse(bondTx))
 	}
-	return BondTransactionListResponse{
-		Status: "ok",
-		Data:   response,
-	}
+	return response
 }
 
 func NewBondTransactionResponse(bondTx repository.PortfolioBondTransaction) BondTransactionResponse {
-	return BondTransactionResponse{Status: "ok", BondTransactionItemResponse: newBondTransactionItemResponse(bondTx)}
+	return BondTransactionResponse{BondTransactionItemResponse: newBondTransactionItemResponse(bondTx)}
 }
 
 func newBondTransactionItemResponse(bondTx repository.PortfolioBondTransaction) BondTransactionItemResponse {

@@ -474,8 +474,12 @@ paths:
             schema:
               $ref: "#/components/schemas/DeletePortfolioRequest"
       responses:
-        "204":
+        "200":
           description: Portfolio deleted and data moved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmptySuccessResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -695,8 +699,12 @@ paths:
         - $ref: "#/components/parameters/PortfolioIDPath"
         - $ref: "#/components/parameters/TransactionIDPath"
       responses:
-        "204":
+        "200":
           description: Cash transaction deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmptySuccessResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -954,8 +962,12 @@ paths:
         - $ref: "#/components/parameters/PortfolioIDPath"
         - $ref: "#/components/parameters/TransactionIDPath"
       responses:
-        "204":
+        "200":
           description: Bond transaction deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmptySuccessResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1265,8 +1277,12 @@ paths:
         - $ref: "#/components/parameters/PortfolioIDPath"
         - $ref: "#/components/parameters/TransactionIDPath"
       responses:
-        "204":
+        "200":
           description: Gold transaction deleted and holding rebuilt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmptySuccessResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1435,12 +1451,25 @@ components:
       enum:
         - nok
     HealthResponse:
-      type: object
+      type: "object"
       required:
-        - status
+        - "status"
+        - "data"
       properties:
         status:
           $ref: "#/components/schemas/StatusOK"
+        data:
+          type: "object"
+          required:
+            - "service"
+            - "env"
+          properties:
+            service:
+              type: "string"
+              example: "healthy"
+            env:
+              type: "string"
+              example: "development"
     MasterData:
       type: object
       required:
@@ -1483,27 +1512,29 @@ components:
           minimum: 0
           example: 16250
     MasterDataUpdateResponse:
-      allOf:
-        - $ref: "#/components/schemas/MasterData"
-        - type: object
-          required:
-            - status
-          properties:
-            status:
-              $ref: "#/components/schemas/StatusOK"
-    ErrorResponse:
-      type: object
+      type: "object"
       required:
-        - status
-        - error
+        - "status"
+        - "data"
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          $ref: "#/components/schemas/MasterData"
+    ErrorResponse:
+      type: "object"
+      required:
+        - "status"
       properties:
         status:
           $ref: "#/components/schemas/StatusNOK"
-        error:
+        data:
           oneOf:
-            - type: string
-            - type: object
-          example: invalid request body
+            -
+              type: "string"
+            -
+              type: "object"
+          example: "invalid request body"
     RegisterRequest:
       type: object
       required:
@@ -1533,39 +1564,49 @@ components:
           format: password
           example: secret123
     RegisterResponse:
-      type: object
+      type: "object"
       required:
-        - status
-        - user
-        - portfolio
+        - "status"
+        - "data"
       properties:
         status:
           $ref: "#/components/schemas/StatusOK"
-        user:
-          $ref: "#/components/schemas/UserBrief"
-        portfolio:
-          $ref: "#/components/schemas/PortfolioBrief"
+        data:
+          type: "object"
+          required:
+            - "user"
+            - "portfolio"
+          properties:
+            user:
+              $ref: "#/components/schemas/UserBrief"
+            portfolio:
+              $ref: "#/components/schemas/PortfolioBrief"
     LoginResponse:
-      type: object
+      type: "object"
       required:
-        - status
-        - token
-        - token_type
-        - expires_at
-        - user
+        - "status"
+        - "data"
       properties:
         status:
           $ref: "#/components/schemas/StatusOK"
-        token:
-          type: string
-        token_type:
-          type: string
-          example: Bearer
-        expires_at:
-          type: string
-          format: date-time
-        user:
-          $ref: "#/components/schemas/UserBrief"
+        data:
+          type: "object"
+          required:
+            - "token"
+            - "token_type"
+            - "expires_at"
+            - "user"
+          properties:
+            token:
+              type: "string"
+            token_type:
+              type: "string"
+              example: "Bearer"
+            expires_at:
+              type: "string"
+              format: "date-time"
+            user:
+              $ref: "#/components/schemas/UserBrief"
     UserBrief:
       type: object
       required:
@@ -1634,38 +1675,43 @@ components:
           type: string
           example: 3b1c8fc7-57c4-4b1c-8425-3b9f1c590a14
     PortfolioResponse:
-      type: object
+      type: "object"
       required:
-        - status
-        - portfolio_id
-        - user_id
-        - name
-        - base_currency_code
-        - is_main
-        - created_at
-        - updated_at
+        - "status"
+        - "data"
       properties:
         status:
           $ref: "#/components/schemas/StatusOK"
-        portfolio_id:
-          type: string
-        user_id:
-          type: string
-        name:
-          type: string
-          example: Growth
-        base_currency_code:
-          type: string
-          example: IDR
-        is_main:
-          type: boolean
-          example: false
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
+        data:
+          type: "object"
+          required:
+            - "portfolio_id"
+            - "user_id"
+            - "name"
+            - "base_currency_code"
+            - "is_main"
+            - "created_at"
+            - "updated_at"
+          properties:
+            portfolio_id:
+              type: "string"
+            user_id:
+              type: "string"
+            name:
+              type: "string"
+              example: "Growth"
+            base_currency_code:
+              type: "string"
+              example: "IDR"
+            is_main:
+              type: "boolean"
+              example: false
+            created_at:
+              type: "string"
+              format: "date-time"
+            updated_at:
+              type: "string"
+              format: "date-time"
     BondRequest:
       allOf:
         - $ref: "#/components/schemas/BondAssetRequest"
@@ -1875,14 +1921,15 @@ components:
           items:
             $ref: "#/components/schemas/Bond"
     BondResponse:
-      allOf:
-        - type: object
-          required:
-            - status
-          properties:
-            status:
-              $ref: "#/components/schemas/StatusOK"
-        - $ref: "#/components/schemas/Bond"
+      type: "object"
+      required:
+        - "status"
+        - "data"
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          $ref: "#/components/schemas/Bond"
     Bond:
       type: object
       required:
@@ -2122,14 +2169,15 @@ components:
           items:
             $ref: "#/components/schemas/BondTransaction"
     BondTransactionResponse:
-      allOf:
-        - type: object
-          required:
-            - status
-          properties:
-            status:
-              $ref: "#/components/schemas/StatusOK"
-        - $ref: "#/components/schemas/BondTransaction"
+      type: "object"
+      required:
+        - "status"
+        - "data"
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          $ref: "#/components/schemas/BondTransaction"
     BondTransaction:
       type: object
       required:
@@ -2274,43 +2322,48 @@ components:
           items:
             $ref: "#/components/schemas/PortfolioItem"
     QuoteResponse:
-      type: object
+      type: "object"
       required:
-        - status
-        - symbol
-        - open
-        - high
-        - low
-        - close
-        - volume
-        - source
-        - fetched_at
+        - "status"
+        - "data"
       properties:
         status:
           $ref: "#/components/schemas/StatusOK"
-        symbol:
-          type: string
-          example: GC=F
-        open:
-          type: number
-          format: double
-        high:
-          type: number
-          format: double
-        low:
-          type: number
-          format: double
-        close:
-          type: number
-          format: double
-        volume:
-          type: integer
-          format: int64
-        source:
-          $ref: "#/components/schemas/MarketDataSource"
-        fetched_at:
-          type: string
-          format: date-time
+        data:
+          type: "object"
+          required:
+            - "symbol"
+            - "open"
+            - "high"
+            - "low"
+            - "close"
+            - "volume"
+            - "source"
+            - "fetched_at"
+          properties:
+            symbol:
+              type: "string"
+              example: "GC=F"
+            open:
+              type: "number"
+              format: "double"
+            high:
+              type: "number"
+              format: "double"
+            low:
+              type: "number"
+              format: "double"
+            close:
+              type: "number"
+              format: "double"
+            volume:
+              type: "integer"
+              format: "int64"
+            source:
+              $ref: "#/components/schemas/MarketDataSource"
+            fetched_at:
+              type: "string"
+              format: "date-time"
     KlineListResponse:
       type: object
       required:
@@ -2334,11 +2387,20 @@ components:
           items:
             $ref: "#/components/schemas/StockKline"
     StockFundamentalsResponse:
-      type: object
-      required: [status, fundamentals]
+      type: "object"
+      required:
+        - "status"
+        - "data"
       properties:
-        status: {$ref: "#/components/schemas/StatusOK"}
-        fundamentals: {$ref: "#/components/schemas/StockFundamentals"}
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          type: "object"
+          required:
+            - "fundamentals"
+          properties:
+            fundamentals:
+              $ref: "#/components/schemas/StockFundamentals"
     StockFundamentals:
       type: object
       required: [ticker, source, payload, scraped_at, updated_at]
@@ -2395,16 +2457,37 @@ components:
         ticker: {type: string, example: BBCA}
         name: {type: string, example: Bank Central Asia Tbk}
     StockResponse:
-      type: object
-      required: [status, ticker, name, active, created_at, updated_at]
+      type: "object"
+      required:
+        - "status"
+        - "data"
       properties:
         status:
           $ref: "#/components/schemas/StatusOK"
-        ticker: {type: string, example: BBCA}
-        name: {type: string, example: Bank Central Asia Tbk}
-        active: {type: boolean, example: true}
-        created_at: {type: string, format: date-time}
-        updated_at: {type: string, format: date-time}
+        data:
+          type: "object"
+          required:
+            - "ticker"
+            - "name"
+            - "active"
+            - "created_at"
+            - "updated_at"
+          properties:
+            ticker:
+              type: "string"
+              example: "BBCA"
+            name:
+              type: "string"
+              example: "Bank Central Asia Tbk"
+            active:
+              type: "boolean"
+              example: true
+            created_at:
+              type: "string"
+              format: "date-time"
+            updated_at:
+              type: "string"
+              format: "date-time"
     StockListResponse:
       type: object
       required: [status, data]
@@ -2569,69 +2652,74 @@ components:
         notes:
           type: string
     PortfolioCashResponse:
-      type: object
+      type: "object"
       required:
-        - status
-        - portfolio_id
-        - asset_id
-        - symbol
-        - name
-        - total_cash
-        - total_cost
-        - unrealized_pnl
-        - realized_pnl
-        - total_pnl
-        - total_pnl_percent
-        - currency_code
-        - accounts
-        - updated_at
+        - "status"
+        - "data"
       properties:
         status:
           $ref: "#/components/schemas/StatusOK"
-        portfolio_id:
-          type: string
-        asset_id:
-          type: string
-        symbol:
-          type: string
-          example: CASH
-        name:
-          type: string
-          example: Cash
-        total_cash:
-          type: number
-          format: double
-          description: Current cash balance across all cash accounts.
-        total_cost:
-          type: number
-          format: double
-          description: Capital basis across all cash accounts.
-        unrealized_pnl:
-          type: number
-          format: double
-          description: Current cash balance minus capital basis.
-        realized_pnl:
-          type: number
-          format: double
-          description: Realized cash PnL. Currently zero for cash summary responses.
-        total_pnl:
-          type: number
-          format: double
-          description: Total cash PnL, calculated as unrealized_pnl plus realized_pnl.
-        total_pnl_percent:
-          type: number
-          format: double
-          description: Total cash PnL divided by capital basis, expressed as a percentage.
-        currency_code:
-          type: string
-          example: IDR
-        accounts:
-          type: array
-          items:
-            $ref: "#/components/schemas/PortfolioCashAccount"
-        updated_at:
-          type: string
-          format: date-time
+        data:
+          type: "object"
+          required:
+            - "portfolio_id"
+            - "asset_id"
+            - "symbol"
+            - "name"
+            - "total_cash"
+            - "total_cost"
+            - "unrealized_pnl"
+            - "realized_pnl"
+            - "total_pnl"
+            - "total_pnl_percent"
+            - "currency_code"
+            - "accounts"
+            - "updated_at"
+          properties:
+            portfolio_id:
+              type: "string"
+            asset_id:
+              type: "string"
+            symbol:
+              type: "string"
+              example: "CASH"
+            name:
+              type: "string"
+              example: "Cash"
+            total_cash:
+              type: "number"
+              format: "double"
+              description: "Current cash balance across all cash accounts."
+            total_cost:
+              type: "number"
+              format: "double"
+              description: "Capital basis across all cash accounts."
+            unrealized_pnl:
+              type: "number"
+              format: "double"
+              description: "Current cash balance minus capital basis."
+            realized_pnl:
+              type: "number"
+              format: "double"
+              description: "Realized cash PnL. Currently zero for cash summary responses."
+            total_pnl:
+              type: "number"
+              format: "double"
+              description: "Total cash PnL, calculated as unrealized_pnl plus realized_pnl."
+            total_pnl_percent:
+              type: "number"
+              format: "double"
+              description: "Total cash PnL divided by capital basis, expressed as a percentage."
+            currency_code:
+              type: "string"
+              example: "IDR"
+            accounts:
+              type: "array"
+              items:
+                $ref: "#/components/schemas/PortfolioCashAccount"
+            updated_at:
+              type: "string"
+              format: "date-time"
     PortfolioCashAccount:
       type: object
       required:
@@ -2684,14 +2772,15 @@ components:
           items:
             $ref: "#/components/schemas/CashTransaction"
     CashTransactionResponse:
-      allOf:
-        - type: object
-          required:
-            - status
-          properties:
-            status:
-              $ref: "#/components/schemas/StatusOK"
-        - $ref: "#/components/schemas/CashTransaction"
+      type: "object"
+      required:
+        - "status"
+        - "data"
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          $ref: "#/components/schemas/CashTransaction"
     CashTransaction:
       type: object
       required:
@@ -3123,3 +3212,17 @@ components:
         updated_at:
           type: string
           format: date-time
+
+    EmptySuccessResponse:
+      type: "object"
+      required:
+        - "status"
+        - "data"
+      properties:
+        status:
+          $ref: "#/components/schemas/StatusOK"
+        data:
+          type: object
+          nullable: true
+          enum:
+            - null

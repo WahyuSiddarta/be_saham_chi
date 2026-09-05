@@ -69,7 +69,7 @@ func (h Handler) CreateGold(w http.ResponseWriter, req *http.Request) error {
 	if e != nil {
 		return portfolioHTTPError(e, "failed to create gold")
 	}
-	return response.JSON(w, http.StatusCreated, NewDataResponse(v))
+	return response.Success(w, http.StatusCreated, v)
 }
 func (h Handler) GetGold(w http.ResponseWriter, req *http.Request) error {
 	id, e := requiredUserID(req)
@@ -80,7 +80,7 @@ func (h Handler) GetGold(w http.ResponseWriter, req *http.Request) error {
 	if e != nil {
 		return portfolioHTTPError(e, "failed to get gold")
 	}
-	return response.JSON(w, http.StatusOK, NewDataResponse(v))
+	return response.Success(w, http.StatusOK, v)
 }
 func (h Handler) CreateGoldTransaction(w http.ResponseWriter, req *http.Request) error {
 	id, e := requiredUserID(req)
@@ -95,7 +95,7 @@ func (h Handler) CreateGoldTransaction(w http.ResponseWriter, req *http.Request)
 	if e != nil {
 		return portfolioHTTPError(e, "failed to create gold transaction")
 	}
-	return response.JSON(w, http.StatusCreated, NewDataResponse(v))
+	return response.Success(w, http.StatusCreated, v)
 }
 func (h Handler) ListGoldTransactions(w http.ResponseWriter, req *http.Request) error {
 	id, e := requiredUserID(req)
@@ -106,7 +106,7 @@ func (h Handler) ListGoldTransactions(w http.ResponseWriter, req *http.Request) 
 	if e != nil {
 		return portfolioHTTPError(e, "failed to list gold transactions")
 	}
-	return response.JSON(w, http.StatusOK, NewDataResponse(v))
+	return response.Success(w, http.StatusOK, v)
 }
 func (h Handler) GetGoldTransaction(w http.ResponseWriter, req *http.Request) error {
 	id, e := requiredUserID(req)
@@ -117,7 +117,7 @@ func (h Handler) GetGoldTransaction(w http.ResponseWriter, req *http.Request) er
 	if e != nil {
 		return portfolioHTTPError(e, "failed to get gold transaction")
 	}
-	return response.JSON(w, http.StatusOK, NewDataResponse(v))
+	return response.Success(w, http.StatusOK, v)
 }
 func (h Handler) UpdateGoldTransaction(w http.ResponseWriter, req *http.Request) error {
 	id, e := requiredUserID(req)
@@ -132,7 +132,7 @@ func (h Handler) UpdateGoldTransaction(w http.ResponseWriter, req *http.Request)
 	if e != nil {
 		return portfolioHTTPError(e, "failed to update gold transaction")
 	}
-	return response.JSON(w, http.StatusOK, NewDataResponse(v))
+	return response.Success(w, http.StatusOK, v)
 }
 func (h Handler) DeleteGoldTransaction(w http.ResponseWriter, req *http.Request) error {
 	id, e := requiredUserID(req)
@@ -143,5 +143,5 @@ func (h Handler) DeleteGoldTransaction(w http.ResponseWriter, req *http.Request)
 	if e != nil {
 		return portfolioHTTPError(e, "failed to delete gold transaction")
 	}
-	return response.NoContent(w, http.StatusNoContent)
+	return response.Success(w, http.StatusOK, nil)
 }

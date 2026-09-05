@@ -17,13 +17,13 @@ func Middleware(config Config) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tokenText, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 			if !ok || strings.TrimSpace(tokenText) == "" {
-				writeUnauthorizedForRequest(w, r, "missing bearer token")
+				writeUnauthorized(w, "missing bearer token")
 				return
 			}
 
 			claims, err := ParseToken(config, strings.TrimSpace(tokenText))
 			if err != nil {
-				writeUnauthorizedForRequest(w, r, "invalid bearer token")
+				writeUnauthorized(w, "invalid bearer token")
 				return
 			}
 
@@ -52,7 +52,7 @@ func RequireRule(required string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			claims, ok := ClaimsFromContext(r.Context())
 			if !ok {
-				_ = response.Error(w, http.StatusUnauthorized, "missing authentication claims")
+				_ = response.Fail(w, http.StatusUnauthorized, "missing authentication claims")
 				return
 			}
 			for _, rule := range claims.Rules {
@@ -61,7 +61,7 @@ func RequireRule(required string) func(http.Handler) http.Handler {
 					return
 				}
 			}
-			_ = response.Error(w, http.StatusForbidden, "forbidden")
+			_ = response.Fail(w, http.StatusForbidden, "forbidden")
 		})
 	}
 }
@@ -75,12 +75,4 @@ func CommodityRule(next http.Handler) http.Handler {
 		}
 		RequireRule(rule)(next).ServeHTTP(w, r)
 	})
-}
-
-func writeUnauthorizedForRequest(w http.ResponseWriter, r *http.Request, message string) {
-	if strings.HasPrefix(r.URL.Path, "/api/v1/") {
-		_ = response.Error(w, http.StatusUnauthorized, message)
-		return
-	}
-	writeUnauthorized(w, message)
 }

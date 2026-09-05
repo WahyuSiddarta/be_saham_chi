@@ -36,24 +36,17 @@ type StockItemResponse struct {
 }
 
 type StockResponse struct {
-	Status string `json:"status"`
 	StockItemResponse
 }
 
-type StockListResponse struct {
-	Status string              `json:"status"`
-	Data   []StockItemResponse `json:"data"`
-}
+type StockListResponse = []StockItemResponse
 
 type StockTickerResponse struct {
 	Ticker string `json:"ticker"`
 	Name   string `json:"name"`
 }
 
-type StockTickerListResponse struct {
-	Status string                `json:"status"`
-	Data   []StockTickerResponse `json:"data"`
-}
+type StockTickerListResponse = []StockTickerResponse
 
 type StockKlineResponse struct {
 	Symbol    string            `json:"symbol"`
@@ -68,13 +61,9 @@ type StockKlineResponse struct {
 	FetchedAt time.Time         `json:"fetched_at"`
 }
 
-type StockKlineListResponse struct {
-	Status string               `json:"status"`
-	Data   []StockKlineResponse `json:"data"`
-}
+type StockKlineListResponse = []StockKlineResponse
 
 type StockQuoteResponse struct {
-	Status    string            `json:"status"`
 	Symbol    string            `json:"symbol"`
 	Open      float64           `json:"open"`
 	High      float64           `json:"high"`
@@ -86,7 +75,6 @@ type StockQuoteResponse struct {
 }
 
 type StockFundamentalsResponse struct {
-	Status       string                    `json:"status"`
 	Fundamentals StockFundamentalsSnapshot `json:"fundamentals"`
 }
 
@@ -117,7 +105,7 @@ func (h Handler) CreateStock(w http.ResponseWriter, req *http.Request) error {
 		}
 		return newHTTPError(http.StatusInternalServerError, "failed to create stock").SetInternal(err)
 	}
-	return response.JSON(w, http.StatusCreated, StockResponse{Status: "ok", StockItemResponse: newStockItemResponse(stock)})
+	return response.Success(w, http.StatusCreated, StockResponse{StockItemResponse: newStockItemResponse(stock)})
 }
 func (h Handler) ListStock(w http.ResponseWriter, req *http.Request) error {
 	stocks, err := h.stockService.ListStocks(req.Context())
@@ -128,7 +116,7 @@ func (h Handler) ListStock(w http.ResponseWriter, req *http.Request) error {
 	for _, stock := range stocks {
 		data = append(data, newStockItemResponse(stock))
 	}
-	return response.JSON(w, http.StatusOK, StockListResponse{Status: "ok", Data: data})
+	return response.Success(w, http.StatusOK, data)
 }
 func (h Handler) SearchTickers(w http.ResponseWriter, req *http.Request) error {
 	limit := 10
@@ -147,7 +135,7 @@ func (h Handler) SearchTickers(w http.ResponseWriter, req *http.Request) error {
 	for _, stock := range stocks {
 		data = append(data, StockTickerResponse{Ticker: stock.Ticker, Name: stock.Name})
 	}
-	return response.JSON(w, http.StatusOK, StockTickerListResponse{Status: "ok", Data: data})
+	return response.Success(w, http.StatusOK, data)
 }
 func (h Handler) GetStock(w http.ResponseWriter, req *http.Request) error {
 	stock, err := h.stockService.GetStock(req.Context(), chi.URLParam(req, "ticker"))
@@ -157,7 +145,7 @@ func (h Handler) GetStock(w http.ResponseWriter, req *http.Request) error {
 	if err != nil {
 		return newHTTPError(http.StatusInternalServerError, "failed to get stock").SetInternal(err)
 	}
-	return response.JSON(w, http.StatusOK, StockResponse{Status: "ok", StockItemResponse: newStockItemResponse(stock)})
+	return response.Success(w, http.StatusOK, StockResponse{StockItemResponse: newStockItemResponse(stock)})
 }
 func (h Handler) UpdateStock(w http.ResponseWriter, req *http.Request) error {
 	var request UpdateStockRequest
@@ -174,7 +162,7 @@ func (h Handler) UpdateStock(w http.ResponseWriter, req *http.Request) error {
 	if err != nil {
 		return newHTTPError(http.StatusInternalServerError, "failed to update stock").SetInternal(err)
 	}
-	return response.JSON(w, http.StatusOK, StockResponse{Status: "ok", StockItemResponse: newStockItemResponse(stock)})
+	return response.Success(w, http.StatusOK, StockResponse{StockItemResponse: newStockItemResponse(stock)})
 }
 func (h Handler) UpdateStockStatus(w http.ResponseWriter, req *http.Request) error {
 	var request UpdateStockStatusRequest
@@ -188,7 +176,7 @@ func (h Handler) UpdateStockStatus(w http.ResponseWriter, req *http.Request) err
 	if err != nil {
 		return newHTTPError(http.StatusInternalServerError, "failed to update stock status").SetInternal(err)
 	}
-	return response.JSON(w, http.StatusOK, StockResponse{Status: "ok", StockItemResponse: newStockItemResponse(stock)})
+	return response.Success(w, http.StatusOK, StockResponse{StockItemResponse: newStockItemResponse(stock)})
 }
 func (h Handler) GetStockKlines(w http.ResponseWriter, req *http.Request) error {
 	from, to, err := stockKlineDateRange(req)
@@ -205,7 +193,7 @@ func (h Handler) GetStockKlines(w http.ResponseWriter, req *http.Request) error 
 		}
 		return newHTTPError(http.StatusBadGateway, "failed to get stock kline").SetInternal(err)
 	}
-	return response.JSON(w, http.StatusOK, StockKlineListResponse{Status: "ok", Data: stockKlinesToResponse(items)})
+	return response.Success(w, http.StatusOK, stockKlinesToResponse(items))
 }
 
 func (h Handler) GetStockQuote(w http.ResponseWriter, req *http.Request) error {
@@ -216,8 +204,8 @@ func (h Handler) GetStockQuote(w http.ResponseWriter, req *http.Request) error {
 		}
 		return newHTTPError(http.StatusBadGateway, "failed to get stock quote").SetInternal(err)
 	}
-	return response.JSON(w, http.StatusOK, StockQuoteResponse{
-		Status: "ok", Symbol: quote.Symbol, Open: quote.Open, High: quote.High,
+	return response.Success(w, http.StatusOK, StockQuoteResponse{
+		Symbol: quote.Symbol, Open: quote.Open, High: quote.High,
 		Low: quote.Low, Close: quote.Close, Volume: quote.Volume,
 		Source: quote.Source, FetchedAt: quote.FetchedAt,
 	})
@@ -231,8 +219,7 @@ func (h Handler) GetFundamentals(w http.ResponseWriter, req *http.Request) error
 		}
 		return newHTTPError(http.StatusInternalServerError, "failed to read stock fundamentals").SetInternal(err)
 	}
-	return response.JSON(w, http.StatusOK, StockFundamentalsResponse{
-		Status: "ok",
+	return response.Success(w, http.StatusOK, StockFundamentalsResponse{
 		Fundamentals: StockFundamentalsSnapshot{
 			Ticker: fundamentals.Ticker, Source: repository.SourceStockbit,
 			Payload: fundamentals.Payload, ScrapedAt: fundamentals.ScrapedAt,

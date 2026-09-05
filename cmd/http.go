@@ -37,7 +37,7 @@ func recoverJSON(next http.Handler) http.Handler {
 		defer func() {
 			if failure := recover(); failure != nil {
 				Log.Error().Str("panic", fmt.Sprint(failure)).Msg("request panic")
-				_ = response.Error(w, http.StatusInternalServerError, "Internal Server Error")
+				_ = response.Fail(w, http.StatusInternalServerError, "Internal Server Error")
 			}
 		}()
 		next.ServeHTTP(w, r)

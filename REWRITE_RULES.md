@@ -72,6 +72,18 @@ File-placement rules:
   `portfolio_holdings.go`; do not create arbitrary files or one file per small
   function.
 
+## 4. API response contract
+
+- Use `response.Success` and `response.Fail` for every JSON API response,
+  including middleware and router errors.
+- Success has `status: "ok"` and the payload inside `data`.
+- Failure has `status: "nok"`; optional details go inside `data`.
+- Domain response types contain payload fields only. Do not add another
+  status/data envelope or leave payload fields at the top level.
+- Successful deletes return HTTP 200 with `data: null`, so they carry the same
+  envelope. CORS preflight and non-JSON documentation are protocol exceptions.
+
+
 ## Rewrite checklist
 
 Before considering a rewritten feature complete, confirm that:

@@ -15,10 +15,30 @@ sqlx repository. The Echo project remains available as the contract reference.
 - `/private/portfolio/{portfolio_id}`: cash, bonds, gold, and their transactions.
 
 Shared ACLs sit on their resource groups; different read/create/update/delete
-permissions remain on individual operations. Existing V2 URLs, response shapes,
-and permissions are retained. `/auth/login` and `/protected` retain the existing
-Chi response envelope. The V2 OpenAPI contract is served at `/openapi.yaml`, with
-an interactive viewer at `/docs`.
+permissions remain on individual operations. Existing V2 URLs and permissions
+are retained. The Chi OpenAPI contract is served at `/openapi.yaml`, with an
+interactive viewer at `/docs`.
+
+## API responses
+
+All JSON API responses use `response.Success` or `response.Fail`:
+
+```json
+{"status":"ok","data":{"id":"example"}}
+{"status":"ok","data":[]}
+{"status":"nok","data":"invalid request body"}
+{"status":"nok"}
+```
+
+Success always includes `data`; failure omits it when no details are supplied.
+List payloads go directly in `data`. Successful deletes return HTTP 200 with
+`{"status":"ok","data":null}`. HTTP 204 is reserved for CORS preflight, which
+has no body; documentation routes serve HTML/YAML.
+
+This intentionally changes V2's flat object and `error` responses. Before
+switching `capitalsight-fe-v2` to Chi, update its consumers (including login,
+portfolio details, quotes, and error handling) to read the envelope's `data`.
+The frontend and Echo backend have not been changed by this response migration.
 
 ## JSON binding
 

@@ -33,7 +33,7 @@ func (h Handler) ListMasterData(w http.ResponseWriter, req *http.Request) error 
 	for _, item := range items {
 		data = append(data, newMasterDataResponse(item))
 	}
-	return response.JSON(w, http.StatusOK, map[string]any{"status": "ok", "data": data})
+	return response.Success(w, http.StatusOK, data)
 }
 
 func (h Handler) UpdateMasterData(w http.ResponseWriter, req *http.Request) error {
@@ -51,12 +51,7 @@ func (h Handler) UpdateMasterData(w http.ResponseWriter, req *http.Request) erro
 	}
 
 	data := newMasterDataResponse(item)
-	return response.JSON(w, http.StatusOK, map[string]any{
-		"status":     "ok",
-		"key":        data.Key,
-		"value":      data.Value,
-		"updated_at": data.UpdatedAt,
-	})
+	return response.Success(w, http.StatusOK, data)
 }
 
 func newMasterDataResponse(item repository.MasterData) MasterDataResponse {

@@ -115,8 +115,8 @@ func TestNestedRoutesPreserveV2PathsAndAuthorization(t *testing.T) {
 				if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
 					t.Fatal(err)
 				}
-				if body["status"] != "nok" || body["error"] == nil {
-					t.Fatalf("wrong V2 error envelope: %v", body)
+				if body["status"] != "nok" || body["data"] == nil {
+					t.Fatalf("wrong error envelope: %v", body)
 				}
 			}
 		})

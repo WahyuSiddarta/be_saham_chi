@@ -66,7 +66,7 @@ func (h Handler) AddCash(w http.ResponseWriter, req *http.Request) error {
 		return cashHTTPError(err, "failed to get portfolio cash")
 	}
 
-	return response.JSON(w, http.StatusCreated, NewPortfolioCashResponse(cash))
+	return response.Success(w, http.StatusCreated, NewPortfolioCashResponse(cash))
 }
 
 func (h Handler) GetCash(w http.ResponseWriter, req *http.Request) error {
@@ -80,7 +80,7 @@ func (h Handler) GetCash(w http.ResponseWriter, req *http.Request) error {
 		return cashHTTPError(err, "failed to get portfolio cash")
 	}
 
-	return response.JSON(w, http.StatusOK, NewPortfolioCashResponse(cash))
+	return response.Success(w, http.StatusOK, NewPortfolioCashResponse(cash))
 }
 
 func (h Handler) ListCashSnapshots(w http.ResponseWriter, req *http.Request) error {
@@ -103,7 +103,7 @@ func (h Handler) ListCashSnapshots(w http.ResponseWriter, req *http.Request) err
 		return cashHTTPError(err, "failed to list cash snapshots")
 	}
 
-	return response.JSON(w, http.StatusOK, NewCashSnapshotListResponse(snapshots))
+	return response.Success(w, http.StatusOK, NewCashSnapshotListResponse(snapshots))
 }
 
 func (h Handler) CreateCashTransaction(w http.ResponseWriter, req *http.Request) error {
@@ -122,7 +122,7 @@ func (h Handler) CreateCashTransaction(w http.ResponseWriter, req *http.Request)
 		return cashHTTPError(err, "failed to create cash transaction")
 	}
 
-	return response.JSON(w, http.StatusCreated, NewCashTransactionResponse(cashTx))
+	return response.Success(w, http.StatusCreated, NewCashTransactionResponse(cashTx))
 }
 
 func (h Handler) ListCashTransactions(w http.ResponseWriter, req *http.Request) error {
@@ -136,7 +136,7 @@ func (h Handler) ListCashTransactions(w http.ResponseWriter, req *http.Request) 
 		return cashHTTPError(err, "failed to list cash transactions")
 	}
 
-	return response.JSON(w, http.StatusOK, NewCashTransactionListResponse(transactions))
+	return response.Success(w, http.StatusOK, NewCashTransactionListResponse(transactions))
 }
 
 func (h Handler) GetCashTransaction(w http.ResponseWriter, req *http.Request) error {
@@ -150,7 +150,7 @@ func (h Handler) GetCashTransaction(w http.ResponseWriter, req *http.Request) er
 		return cashHTTPError(err, "failed to get cash transaction")
 	}
 
-	return response.JSON(w, http.StatusOK, NewCashTransactionResponse(cashTx))
+	return response.Success(w, http.StatusOK, NewCashTransactionResponse(cashTx))
 }
 
 func (h Handler) UpdateCashTransaction(w http.ResponseWriter, req *http.Request) error {
@@ -169,7 +169,7 @@ func (h Handler) UpdateCashTransaction(w http.ResponseWriter, req *http.Request)
 		return cashHTTPError(err, "failed to update cash transaction")
 	}
 
-	return response.JSON(w, http.StatusOK, NewCashTransactionResponse(cashTx))
+	return response.Success(w, http.StatusOK, NewCashTransactionResponse(cashTx))
 }
 
 func (h Handler) DeleteCashTransaction(w http.ResponseWriter, req *http.Request) error {
@@ -183,11 +183,10 @@ func (h Handler) DeleteCashTransaction(w http.ResponseWriter, req *http.Request)
 		return cashHTTPError(err, "failed to delete cash transaction")
 	}
 
-	return response.NoContent(w, http.StatusNoContent)
+	return response.Success(w, http.StatusOK, nil)
 }
 
 type PortfolioCashResponse struct {
-	Status          string                         `json:"status"`
 	PortfolioID     string                         `json:"portfolio_id"`
 	AssetID         string                         `json:"asset_id"`
 	Symbol          string                         `json:"symbol"`
@@ -213,18 +212,11 @@ type PortfolioCashAccountResponse struct {
 	UpdatedAt       string  `json:"updated_at"`
 }
 
-type CashTransactionListResponse struct {
-	Status string                        `json:"status"`
-	Data   []CashTransactionItemResponse `json:"data"`
-}
+type CashTransactionListResponse = []CashTransactionItemResponse
 
-type CashSnapshotListResponse struct {
-	Status string                 `json:"status"`
-	Data   []CashSnapshotResponse `json:"data"`
-}
+type CashSnapshotListResponse = []CashSnapshotResponse
 
 type CashTransactionResponse struct {
-	Status string `json:"status"`
 	CashTransactionItemResponse
 }
 
@@ -279,7 +271,6 @@ func NewPortfolioCashResponse(cash repository.PortfolioCash) PortfolioCashRespon
 	}
 
 	return PortfolioCashResponse{
-		Status:          "ok",
 		PortfolioID:     cash.PortfolioID,
 		AssetID:         cash.AssetID,
 		Symbol:          cash.Symbol,
@@ -301,10 +292,7 @@ func NewCashTransactionListResponse(transactions []repository.PortfolioCashTrans
 	for _, cashTx := range transactions {
 		response = append(response, newCashTransactionItemResponse(cashTx))
 	}
-	return CashTransactionListResponse{
-		Status: "ok",
-		Data:   response,
-	}
+	return response
 }
 
 func NewCashSnapshotListResponse(snapshots []repository.PortfolioCashSnapshot) CashSnapshotListResponse {
@@ -326,14 +314,11 @@ func NewCashSnapshotListResponse(snapshots []repository.PortfolioCashSnapshot) C
 			UpdatedAt:       formatTime(snapshot.UpdatedAt),
 		})
 	}
-	return CashSnapshotListResponse{
-		Status: "ok",
-		Data:   response,
-	}
+	return response
 }
 
 func NewCashTransactionResponse(cashTx repository.PortfolioCashTransaction) CashTransactionResponse {
-	return CashTransactionResponse{Status: "ok", CashTransactionItemResponse: newCashTransactionItemResponse(cashTx)}
+	return CashTransactionResponse{CashTransactionItemResponse: newCashTransactionItemResponse(cashTx)}
 }
 
 func newCashTransactionItemResponse(cashTx repository.PortfolioCashTransaction) CashTransactionItemResponse {

@@ -160,9 +160,9 @@ func (app Application) routes() http.Handler {
 	r.Get("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, "docs/openapi.yaml") })
 	r.Get("/docs", docsHandler)
 	r.Get("/docs/", docsHandler)
-	r.NotFound(func(w http.ResponseWriter, r *http.Request) { _ = response.Error(w, http.StatusNotFound, "Not Found") })
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) { _ = response.Fail(w, http.StatusNotFound, "Not Found") })
 	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
-		_ = response.Error(w, http.StatusMethodNotAllowed, "Method Not Allowed")
+		_ = response.Fail(w, http.StatusMethodNotAllowed, "Method Not Allowed")
 	})
 	return r
 }

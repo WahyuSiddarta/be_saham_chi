@@ -55,7 +55,7 @@ type Domains struct {
 	MasterData *service.MasterDataService
 }
 
-// Handle maps domain errors to the V2 response contract.
+// Handle maps domain errors to the shared response envelope.
 func (h Handler) Handle(next func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := next(w, r); err != nil {
@@ -69,7 +69,7 @@ func (h Handler) Handle(next func(http.ResponseWriter, *http.Request) error) htt
 				event = h.log.Error()
 			}
 			event.Err(err).Int("status_code", code).Str("request_id", middleware.GetReqID(r.Context())).Str("method", r.Method).Str("path", r.URL.Path).Msg("request failed")
-			_ = response.Error(w, code, message)
+			_ = response.Fail(w, code, message)
 		}
 	}
 }
@@ -91,12 +91,3 @@ func (e *httpError) Error() string {
 }
 func (e *httpError) Unwrap() error                    { return e.Internal }
 func (e *httpError) SetInternal(err error) *httpError { e.Internal = err; return e }
-
-type DataResponse[T any] struct {
-	Status string `json:"status"`
-	Data   T      `json:"data"`
-}
-
-func NewDataResponse[T any](data T) DataResponse[T] {
-	return DataResponse[T]{Status: "ok", Data: data}
-}

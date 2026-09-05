@@ -107,7 +107,7 @@ func (h Handler) Register(w http.ResponseWriter, req *http.Request) error {
 		return newHTTPError(http.StatusInternalServerError, "failed to register user").SetInternal(fmt.Errorf("AuthHandler.Register -> AuthService.Register: %w", err))
 	}
 
-	return response.JSON(w, http.StatusCreated, NewRegisterResponse(user, portfolio))
+	return response.Success(w, http.StatusCreated, NewRegisterResponse(user, portfolio))
 }
 
 type LoginRequest struct {
@@ -141,8 +141,7 @@ func (h Handler) LoginV2(w http.ResponseWriter, req *http.Request) error {
 		return newHTTPError(http.StatusInternalServerError, "failed to login").SetInternal(fmt.Errorf("AuthHandler.Login -> AuthService.Login: %w", err))
 	}
 
-	return response.JSON(w, http.StatusOK, LoginResponse{
-		Status:    "ok",
+	return response.Success(w, http.StatusOK, LoginResponse{
 		Token:     result.Token,
 		TokenType: "Bearer",
 		ExpiresAt: result.ExpiresAt.Format(time.RFC3339Nano),
@@ -151,7 +150,6 @@ func (h Handler) LoginV2(w http.ResponseWriter, req *http.Request) error {
 }
 
 type RegisterResponse struct {
-	Status    string         `json:"status"`
 	User      UserBrief      `json:"user"`
 	Portfolio PortfolioBrief `json:"portfolio"`
 }
@@ -166,7 +164,6 @@ type UserBrief struct {
 }
 
 type LoginResponse struct {
-	Status    string    `json:"status"`
 	Token     string    `json:"token"`
 	TokenType string    `json:"token_type"`
 	ExpiresAt string    `json:"expires_at"`
@@ -182,7 +179,6 @@ type PortfolioBrief struct {
 
 func NewRegisterResponse(user repository.User, portfolio repository.Portfolio) RegisterResponse {
 	return RegisterResponse{
-		Status:    "ok",
 		User:      NewUserBrief(user),
 		Portfolio: NewPortfolioBrief(portfolio),
 	}

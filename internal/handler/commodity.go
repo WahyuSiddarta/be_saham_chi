@@ -34,7 +34,7 @@ func (h Handler) GetCommodityQuote(w http.ResponseWriter, req *http.Request) err
 		return newHTTPError(http.StatusBadGateway, "failed to fetch commodity quote").SetInternal(err)
 	}
 
-	return response.JSON(w, http.StatusOK, NewQuoteResponse(quote))
+	return response.Success(w, http.StatusOK, NewQuoteResponse(quote))
 }
 
 func (h Handler) GetCommodityKlines(w http.ResponseWriter, req *http.Request) error {
@@ -54,11 +54,10 @@ func (h Handler) GetCommodityKlines(w http.ResponseWriter, req *http.Request) er
 		return newHTTPError(http.StatusBadGateway, "failed to fetch commodity kline").SetInternal(err)
 	}
 
-	return response.JSON(w, http.StatusOK, NewKlineListResponse(klines))
+	return response.Success(w, http.StatusOK, NewKlineListResponse(klines))
 }
 
 type QuoteResponse struct {
-	Status    string            `json:"status"`
 	Symbol    string            `json:"symbol"`
 	Open      float64           `json:"open"`
 	High      float64           `json:"high"`
@@ -71,7 +70,6 @@ type QuoteResponse struct {
 
 func NewQuoteResponse(quote repository.MarketPrice) QuoteResponse {
 	return QuoteResponse{
-		Status:    "ok",
 		Symbol:    quote.Symbol,
 		Open:      quote.Open,
 		High:      quote.High,
@@ -83,10 +81,7 @@ func NewQuoteResponse(quote repository.MarketPrice) QuoteResponse {
 	}
 }
 
-type KlineListResponse struct {
-	Status string          `json:"status"`
-	Data   []KlineResponse `json:"data"`
-}
+type KlineListResponse = []KlineResponse
 
 type KlineResponse struct {
 	Symbol    string            `json:"symbol"`
@@ -118,8 +113,5 @@ func NewKlineListResponse(klines []repository.MarketKline) KlineListResponse {
 		})
 	}
 
-	return KlineListResponse{
-		Status: "ok",
-		Data:   response,
-	}
+	return response
 }
