@@ -181,9 +181,10 @@ func TestTransactionListsPreserveRowMappingAndEmptyResults(t *testing.T) {
 					amountColumn = "principal_amount"
 				}
 				values := []driver.Value{"tx-1", float64(125)}
-				if mode == "empty" {
+				switch mode {
+				case "empty":
 					values = nil
-				} else if mode == "invalid amount" {
+				case "invalid amount":
 					values[1] = "invalid"
 				}
 				repo, _ := testRepository(t,
