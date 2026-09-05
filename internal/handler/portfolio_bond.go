@@ -1,14 +1,10 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
-	"time"
 
-	"github.com/WahyuSiddarta/be_saham_chi/internal/repository"
-	binding "github.com/WahyuSiddarta/be_saham_chi/internal/request"
+	"github.com/WahyuSiddarta/be_saham_chi/internal/helper"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/response"
-	"github.com/WahyuSiddarta/be_saham_chi/internal/service"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -70,17 +66,19 @@ type BondTransactionRequest struct {
 func (h Handler) CreateBond(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	input, err := bindBondRequest(req)
 	if err != nil {
-		return newHTTPError(http.StatusBadRequest, err.Error())
+		return response.Fail(w, http.StatusBadRequest, err.Error())
 	}
 
 	bond, err := h.bondService.CreateBond(req.Context(), userID, chi.URLParam(req, "portfolio_id"), input)
 	if err != nil {
-		return bondHTTPError(err, "failed to create bond")
+		status, message := bondHTTPError(err, "failed to create bond")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusCreated, NewBondResponse(bond))
@@ -89,12 +87,14 @@ func (h Handler) CreateBond(w http.ResponseWriter, req *http.Request) error {
 func (h Handler) ListBonds(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	bonds, err := h.bondService.ListBonds(req.Context(), userID, chi.URLParam(req, "portfolio_id"))
 	if err != nil {
-		return bondHTTPError(err, "failed to list bonds")
+		status, message := bondHTTPError(err, "failed to list bonds")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, NewBondListResponse(bonds))
@@ -103,12 +103,14 @@ func (h Handler) ListBonds(w http.ResponseWriter, req *http.Request) error {
 func (h Handler) GetBond(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	bond, err := h.bondService.GetBond(req.Context(), userID, chi.URLParam(req, "portfolio_id"), chi.URLParam(req, "asset_id"))
 	if err != nil {
-		return bondHTTPError(err, "failed to get bond")
+		status, message := bondHTTPError(err, "failed to get bond")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, NewBondResponse(bond))
@@ -117,17 +119,19 @@ func (h Handler) GetBond(w http.ResponseWriter, req *http.Request) error {
 func (h Handler) UpdateBond(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	input, err := bindBondAssetRequest(req)
 	if err != nil {
-		return newHTTPError(http.StatusBadRequest, err.Error())
+		return response.Fail(w, http.StatusBadRequest, err.Error())
 	}
 
 	bond, err := h.bondService.UpdateBond(req.Context(), userID, chi.URLParam(req, "portfolio_id"), chi.URLParam(req, "asset_id"), input)
 	if err != nil {
-		return bondHTTPError(err, "failed to update bond")
+		status, message := bondHTTPError(err, "failed to update bond")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, NewBondResponse(bond))
@@ -136,17 +140,19 @@ func (h Handler) UpdateBond(w http.ResponseWriter, req *http.Request) error {
 func (h Handler) AdjustBondValuation(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	input, err := bindBondValuationRequest(req)
 	if err != nil {
-		return newHTTPError(http.StatusBadRequest, err.Error())
+		return response.Fail(w, http.StatusBadRequest, err.Error())
 	}
 
 	bond, err := h.bondService.AdjustBondValuation(req.Context(), userID, chi.URLParam(req, "portfolio_id"), chi.URLParam(req, "asset_id"), input)
 	if err != nil {
-		return bondHTTPError(err, "failed to adjust bond valuation")
+		status, message := bondHTTPError(err, "failed to adjust bond valuation")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, NewBondResponse(bond))
@@ -155,21 +161,23 @@ func (h Handler) AdjustBondValuation(w http.ResponseWriter, req *http.Request) e
 func (h Handler) ListBondSnapshots(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
-	from, err := parseDateQuery(req.URL.Query().Get("from"))
+	from, err := helper.ParseDate(req.URL.Query().Get("from"))
 	if err != nil {
-		return newHTTPError(http.StatusBadRequest, "invalid from")
+		return response.Fail(w, http.StatusBadRequest, "invalid from")
 	}
-	to, err := parseDateQuery(req.URL.Query().Get("to"))
+	to, err := helper.ParseDate(req.URL.Query().Get("to"))
 	if err != nil {
-		return newHTTPError(http.StatusBadRequest, "invalid to")
+		return response.Fail(w, http.StatusBadRequest, "invalid to")
 	}
 
 	snapshots, err := h.bondService.ListBondSnapshots(req.Context(), userID, chi.URLParam(req, "portfolio_id"), from, to)
 	if err != nil {
-		return bondHTTPError(err, "failed to list bond snapshots")
+		status, message := bondHTTPError(err, "failed to list bond snapshots")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, NewBondSnapshotListResponse(snapshots))
@@ -178,17 +186,19 @@ func (h Handler) ListBondSnapshots(w http.ResponseWriter, req *http.Request) err
 func (h Handler) CreateBondTransaction(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	input, err := bindBondTransactionRequest(req)
 	if err != nil {
-		return newHTTPError(http.StatusBadRequest, err.Error())
+		return response.Fail(w, http.StatusBadRequest, err.Error())
 	}
 
 	bondTx, err := h.bondService.CreateBondTransaction(req.Context(), userID, chi.URLParam(req, "portfolio_id"), input)
 	if err != nil {
-		return bondHTTPError(err, "failed to create bond transaction")
+		status, message := bondHTTPError(err, "failed to create bond transaction")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusCreated, NewBondTransactionResponse(bondTx))
@@ -197,12 +207,14 @@ func (h Handler) CreateBondTransaction(w http.ResponseWriter, req *http.Request)
 func (h Handler) ListBondTransactions(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	transactions, err := h.bondService.ListBondTransactions(req.Context(), userID, chi.URLParam(req, "portfolio_id"))
 	if err != nil {
-		return bondHTTPError(err, "failed to list bond transactions")
+		status, message := bondHTTPError(err, "failed to list bond transactions")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, NewBondTransactionListResponse(transactions))
@@ -211,12 +223,14 @@ func (h Handler) ListBondTransactions(w http.ResponseWriter, req *http.Request) 
 func (h Handler) GetBondTransaction(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	bondTx, err := h.bondService.GetBondTransaction(req.Context(), userID, chi.URLParam(req, "portfolio_id"), chi.URLParam(req, "transaction_id"))
 	if err != nil {
-		return bondHTTPError(err, "failed to get bond transaction")
+		status, message := bondHTTPError(err, "failed to get bond transaction")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, NewBondTransactionResponse(bondTx))
@@ -225,17 +239,19 @@ func (h Handler) GetBondTransaction(w http.ResponseWriter, req *http.Request) er
 func (h Handler) UpdateBondTransaction(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	input, err := bindBondTransactionRequest(req)
 	if err != nil {
-		return newHTTPError(http.StatusBadRequest, err.Error())
+		return response.Fail(w, http.StatusBadRequest, err.Error())
 	}
 
 	bondTx, err := h.bondService.UpdateBondTransaction(req.Context(), userID, chi.URLParam(req, "portfolio_id"), chi.URLParam(req, "transaction_id"), input)
 	if err != nil {
-		return bondHTTPError(err, "failed to update bond transaction")
+		status, message := bondHTTPError(err, "failed to update bond transaction")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, NewBondTransactionResponse(bondTx))
@@ -244,12 +260,14 @@ func (h Handler) UpdateBondTransaction(w http.ResponseWriter, req *http.Request)
 func (h Handler) DeleteBondTransaction(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	err = h.bondService.DeleteBondTransaction(req.Context(), userID, chi.URLParam(req, "portfolio_id"), chi.URLParam(req, "transaction_id"))
 	if err != nil {
-		return bondHTTPError(err, "failed to delete bond transaction")
+		status, message := bondHTTPError(err, "failed to delete bond transaction")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, nil)
@@ -356,258 +374,3 @@ type BondTransactionItemResponse struct {
 
 type BondSnapshotListResponse = CashSnapshotListResponse
 type BondSnapshotResponse = CashSnapshotResponse
-
-func NewBondListResponse(bonds []repository.PortfolioBond) BondListResponse {
-	response := make([]BondItemResponse, 0, len(bonds))
-	for _, bond := range bonds {
-		response = append(response, newBondItemResponse(bond))
-	}
-	return response
-}
-
-func NewBondResponse(bond repository.PortfolioBond) BondResponse {
-	return BondResponse{BondItemResponse: newBondItemResponse(bond)}
-}
-
-func newBondItemResponse(bond repository.PortfolioBond) BondItemResponse {
-	now := time.Now().UTC()
-	accounts := make([]BondAccountResponse, 0, len(bond.Accounts))
-	for _, account := range bond.Accounts {
-		schedule := bond.Term.CouponScheduleSummary(account.PrincipalAmount, now)
-		accounts = append(accounts, BondAccountResponse{
-			AccountID:                   account.AccountID,
-			AccountName:                 account.AccountName,
-			PrincipalAmount:             account.PrincipalAmount,
-			TotalCost:                   account.TotalCost,
-			MarketValue:                 account.MarketValue,
-			UnrealizedPnL:               account.UnrealizedPnL,
-			TotalPnL:                    account.TotalPnL,
-			TotalPnLPercent:             account.TotalPnLPercent,
-			MaturityDate:                formatDate(bond.Term.MaturityDate),
-			NextCouponDate:              formatOptionalDate(schedule.NextCouponDate),
-			CouponAmountPerPeriod:       schedule.CouponAmountPerPeriod,
-			CouponPaymentsPerYear:       schedule.CouponPaymentsPerYear,
-			IsNextCouponAtMaturity:      schedule.IsNextCouponAtMaturity,
-			PrincipalReturnedAtMaturity: schedule.PrincipalReturnedAmount,
-			LatestValuation:             newBondValuationResponse(account.LatestValuation),
-			UpdatedAt:                   formatTime(account.UpdatedAt),
-		})
-	}
-	schedule := bond.Term.CouponScheduleSummary(bond.PrincipalAmount, now)
-
-	return BondItemResponse{
-		PortfolioID:     bond.PortfolioID,
-		AssetID:         bond.AssetID,
-		AccountID:       bond.AccountID,
-		AccountName:     bond.AccountName,
-		Symbol:          bond.Symbol,
-		Name:            bond.Name,
-		PrincipalAmount: bond.PrincipalAmount,
-		TotalCost:       bond.TotalCost,
-		MarketValue:     bond.MarketValue,
-		UnrealizedPnL:   bond.UnrealizedPnL,
-		RealizedPnL:     bond.RealizedPnL,
-		TotalPnL:        bond.TotalPnL,
-		TotalPnLPercent: bond.TotalPnLPercent,
-		CurrencyCode:    bond.CurrencyCode,
-		Term: BondTermResponse{
-			IssueDate:       formatDate(bond.Term.IssueDate),
-			MaturityDate:    formatDate(bond.Term.MaturityDate),
-			AnnualRate:      bond.Term.AnnualRate,
-			CouponFrequency: bond.Term.CouponFrequency,
-			PrincipalValue:  bond.Term.PrincipalValue,
-		},
-		MaturityDate:                formatDate(bond.Term.MaturityDate),
-		NextCouponDate:              formatOptionalDate(schedule.NextCouponDate),
-		CouponAmountPerPeriod:       schedule.CouponAmountPerPeriod,
-		CouponPaymentsPerYear:       schedule.CouponPaymentsPerYear,
-		IsNextCouponAtMaturity:      schedule.IsNextCouponAtMaturity,
-		PrincipalReturnedAtMaturity: schedule.PrincipalReturnedAmount,
-		LatestValuation:             newBondValuationResponse(bond.LatestValuation),
-		Accounts:                    accounts,
-		UpdatedAt:                   formatTime(bond.UpdatedAt),
-	}
-}
-
-func newBondValuationResponse(valuation *repository.PortfolioBondValuation) *BondValuationResponse {
-	if valuation == nil {
-		return nil
-	}
-	return &BondValuationResponse{
-		ValuationDate: formatDate(valuation.ValuationDate),
-		Price:         valuation.Price,
-		MarketValue:   valuation.MarketValue,
-		Source:        valuation.Source,
-		Notes:         valuation.Notes,
-		CreatedAt:     formatTime(valuation.CreatedAt),
-	}
-}
-
-func NewBondTransactionListResponse(transactions []repository.PortfolioBondTransaction) BondTransactionListResponse {
-	response := make([]BondTransactionItemResponse, 0, len(transactions))
-	for _, bondTx := range transactions {
-		response = append(response, newBondTransactionItemResponse(bondTx))
-	}
-	return response
-}
-
-func NewBondTransactionResponse(bondTx repository.PortfolioBondTransaction) BondTransactionResponse {
-	return BondTransactionResponse{BondTransactionItemResponse: newBondTransactionItemResponse(bondTx)}
-}
-
-func newBondTransactionItemResponse(bondTx repository.PortfolioBondTransaction) BondTransactionItemResponse {
-	return BondTransactionItemResponse{
-		TransactionID:       bondTx.TransactionID,
-		PortfolioID:         bondTx.PortfolioID,
-		AccountID:           bondTx.AccountID,
-		AccountName:         bondTx.AccountName,
-		AssetID:             bondTx.AssetID,
-		Symbol:              bondTx.Symbol,
-		Name:                bondTx.Name,
-		TransactionType:     bondTx.TransactionType,
-		TransactionDate:     formatTime(bondTx.TransactionDate),
-		PrincipalAmount:     bondTx.PrincipalAmount,
-		Price:               bondTx.Price,
-		GrossAmount:         bondTx.GrossAmount,
-		CostAmount:          bondTx.CostAmount,
-		AccruedCouponAmount: bondTx.AccruedCouponAmount,
-		FeeAmount:           bondTx.FeeAmount,
-		TaxAmount:           bondTx.TaxAmount,
-		NetAmount:           bondTx.NetAmount,
-		CurrencyCode:        bondTx.CurrencyCode,
-		Notes:               bondTx.Notes,
-		CreatedAt:           formatTime(bondTx.CreatedAt),
-		UpdatedAt:           formatTime(bondTx.UpdatedAt),
-	}
-}
-
-func NewBondSnapshotListResponse(snapshots []repository.PortfolioBondSnapshot) BondSnapshotListResponse {
-	return NewCashSnapshotListResponse(snapshots)
-}
-func bindBondRequest(req *http.Request) (service.BondInput, error) {
-	var request BondRequest
-	if err := binding.BindJSON(req.Body, &request); err != nil {
-		return service.BondInput{}, errors.New("invalid request body")
-	}
-	assetInput, err := bondAssetInputFromRequest(BondAssetRequest{
-		Symbol:          request.Symbol,
-		Name:            request.Name,
-		IssueDate:       request.IssueDate,
-		MaturityDate:    request.MaturityDate,
-		AnnualRate:      request.AnnualRate,
-		CouponFrequency: request.CouponFrequency,
-		PrincipalValue:  request.PrincipalValue,
-	})
-	if err != nil {
-		return service.BondInput{}, err
-	}
-	transactionDate, err := parseOptionalRFC3339(request.TransactionDate, "transaction_date")
-	if err != nil {
-		return service.BondInput{}, err
-	}
-	return service.BondInput{
-		BondAssetInput:      assetInput,
-		AccountID:           request.AccountID,
-		AccountName:         request.AccountName,
-		PrincipalAmount:     request.PrincipalAmount,
-		CostAmount:          request.CostAmount,
-		AccruedCouponAmount: request.AccruedCouponAmount,
-		FeeAmount:           request.FeeAmount,
-		MarketValue:         request.MarketValue,
-		TransactionDate:     transactionDate,
-		Notes:               request.Notes,
-	}, nil
-}
-
-func bindBondAssetRequest(req *http.Request) (service.BondAssetInput, error) {
-	var request BondAssetRequest
-	if err := binding.BindJSON(req.Body, &request); err != nil {
-		return service.BondAssetInput{}, errors.New("invalid request body")
-	}
-	return bondAssetInputFromRequest(request)
-}
-
-func bondAssetInputFromRequest(request BondAssetRequest) (service.BondAssetInput, error) {
-	issueDate, err := parseOptionalDate(request.IssueDate, "issue_date")
-	if err != nil {
-		return service.BondAssetInput{}, err
-	}
-	maturityDate, err := parseOptionalDate(request.MaturityDate, "maturity_date")
-	if err != nil {
-		return service.BondAssetInput{}, err
-	}
-	return service.BondAssetInput{
-		Symbol:          request.Symbol,
-		Name:            request.Name,
-		IssueDate:       issueDate,
-		MaturityDate:    maturityDate,
-		AnnualRate:      request.AnnualRate,
-		CouponFrequency: request.CouponFrequency,
-		PrincipalValue:  request.PrincipalValue,
-	}, nil
-}
-
-func bindBondValuationRequest(req *http.Request) (service.BondValuationInput, error) {
-	var request BondValuationRequest
-	if err := binding.BindJSON(req.Body, &request); err != nil {
-		return service.BondValuationInput{}, errors.New("invalid request body")
-	}
-	valuationDate, err := parseOptionalDate(request.ValuationDate, "valuation_date")
-	if err != nil {
-		return service.BondValuationInput{}, err
-	}
-	return service.BondValuationInput{
-		AccountID:     request.AccountID,
-		ValuationDate: valuationDate,
-		Price:         request.Price,
-		MarketValue:   request.MarketValue,
-		Notes:         request.Notes,
-	}, nil
-}
-
-func bindBondTransactionRequest(req *http.Request) (service.BondTransactionInput, error) {
-	var request BondTransactionRequest
-	if err := binding.BindJSON(req.Body, &request); err != nil {
-		return service.BondTransactionInput{}, errors.New("invalid request body")
-	}
-	transactionDate, err := parseOptionalRFC3339(request.TransactionDate, "transaction_date")
-	if err != nil {
-		return service.BondTransactionInput{}, err
-	}
-	return service.BondTransactionInput{
-		AccountID:           request.AccountID,
-		AccountName:         request.AccountName,
-		AssetID:             request.AssetID,
-		TransactionType:     request.TransactionType,
-		PrincipalAmount:     request.PrincipalAmount,
-		Price:               request.Price,
-		GrossAmount:         request.GrossAmount,
-		CostAmount:          request.CostAmount,
-		AccruedCouponAmount: request.AccruedCouponAmount,
-		FeeAmount:           request.FeeAmount,
-		TaxAmount:           request.TaxAmount,
-		NetAmount:           request.NetAmount,
-		TransactionDate:     transactionDate,
-		Notes:               request.Notes,
-	}, nil
-}
-func bondHTTPError(err error, fallback string) error {
-	return mapPortfolioHTTPError(err, fallback,
-		httpErrorRule{service.ErrInvalidPortfolioID, http.StatusBadRequest, "portfolio_id is required"},
-		httpErrorRule{service.ErrInvalidTransactionID, http.StatusBadRequest, "transaction_id is required"},
-		httpErrorRule{service.ErrInvalidBondAsset, http.StatusBadRequest, "valid bond asset is required"},
-		httpErrorRule{service.ErrInvalidBondAccount, http.StatusBadRequest, "valid account_id or account_name is required"},
-		httpErrorRule{service.ErrInvalidBondAmount, http.StatusBadRequest, "bond amounts must be valid and non-negative"},
-		httpErrorRule{service.ErrInvalidBondTerm, http.StatusBadRequest, "invalid bond term"},
-		httpErrorRule{service.ErrInvalidBondCouponFrequency, http.StatusBadRequest, "coupon_frequency must be one of monthly, quarterly, semiannual, or annual"},
-		httpErrorRule{service.ErrInvalidBondValuation, http.StatusBadRequest, "price or market_value is required"},
-		httpErrorRule{service.ErrInvalidTransactionType, http.StatusBadRequest, "invalid transaction_type"},
-		httpErrorRule{service.ErrInvalidSnapshotRange, http.StatusBadRequest, "invalid snapshot range"},
-		httpErrorRule{repository.ErrPortfolioNotFound, http.StatusNotFound, "portfolio not found"},
-		httpErrorRule{repository.ErrBondAssetNotFound, http.StatusNotFound, "bond asset not found"},
-		httpErrorRule{repository.ErrBondAccountNotFound, http.StatusNotFound, "bond account not found"},
-		httpErrorRule{repository.ErrBondHoldingNotFound, http.StatusNotFound, "bond holding not found"},
-		httpErrorRule{repository.ErrBondTransactionNotFound, http.StatusNotFound, "bond transaction not found"},
-		httpErrorRule{repository.ErrBondHoldingQuantity, http.StatusConflict, "bond holding quantity is insufficient"},
-	)
-}

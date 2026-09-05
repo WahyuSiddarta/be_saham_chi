@@ -1,11 +1,10 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 
+	"github.com/WahyuSiddarta/be_saham_chi/internal/helper"
 	applogger "github.com/WahyuSiddarta/be_saham_chi/internal/logger"
-	"github.com/WahyuSiddarta/be_saham_chi/internal/repository"
 	binding "github.com/WahyuSiddarta/be_saham_chi/internal/request"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/response"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/service"
@@ -32,7 +31,7 @@ type CashTransactionRequest struct {
 func (h Handler) AddCash(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	applogger.Info().
@@ -42,7 +41,7 @@ func (h Handler) AddCash(w http.ResponseWriter, req *http.Request) error {
 
 	var request AddCashRequest
 	if err := binding.BindJSON(req.Body, &request); err != nil {
-		return newHTTPError(http.StatusBadRequest, "invalid request body")
+		return response.Fail(w, http.StatusBadRequest, "invalid request body")
 	}
 
 	accountName := request.AccountName
@@ -58,12 +57,16 @@ func (h Handler) AddCash(w http.ResponseWriter, req *http.Request) error {
 		Notes:           request.Notes,
 	})
 	if err != nil {
-		return cashHTTPError(err, "failed to add portfolio cash")
+		status, message := cashHTTPError(err, "failed to add portfolio cash")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	cash, err := h.cashService.GetCash(req.Context(), userID, chi.URLParam(req, "portfolio_id"))
 	if err != nil {
-		return cashHTTPError(err, "failed to get portfolio cash")
+		status, message := cashHTTPError(err, "failed to get portfolio cash")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusCreated, NewPortfolioCashResponse(cash))
@@ -72,12 +75,14 @@ func (h Handler) AddCash(w http.ResponseWriter, req *http.Request) error {
 func (h Handler) GetCash(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	cash, err := h.cashService.GetCash(req.Context(), userID, chi.URLParam(req, "portfolio_id"))
 	if err != nil {
-		return cashHTTPError(err, "failed to get portfolio cash")
+		status, message := cashHTTPError(err, "failed to get portfolio cash")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, NewPortfolioCashResponse(cash))
@@ -86,21 +91,23 @@ func (h Handler) GetCash(w http.ResponseWriter, req *http.Request) error {
 func (h Handler) ListCashSnapshots(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
-	from, err := parseDateQuery(req.URL.Query().Get("from"))
+	from, err := helper.ParseDate(req.URL.Query().Get("from"))
 	if err != nil {
-		return newHTTPError(http.StatusBadRequest, "invalid from")
+		return response.Fail(w, http.StatusBadRequest, "invalid from")
 	}
-	to, err := parseDateQuery(req.URL.Query().Get("to"))
+	to, err := helper.ParseDate(req.URL.Query().Get("to"))
 	if err != nil {
-		return newHTTPError(http.StatusBadRequest, "invalid to")
+		return response.Fail(w, http.StatusBadRequest, "invalid to")
 	}
 
 	snapshots, err := h.cashService.ListCashSnapshots(req.Context(), userID, chi.URLParam(req, "portfolio_id"), from, to)
 	if err != nil {
-		return cashHTTPError(err, "failed to list cash snapshots")
+		status, message := cashHTTPError(err, "failed to list cash snapshots")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, NewCashSnapshotListResponse(snapshots))
@@ -109,17 +116,19 @@ func (h Handler) ListCashSnapshots(w http.ResponseWriter, req *http.Request) err
 func (h Handler) CreateCashTransaction(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	input, err := bindCashTransactionRequest(req)
 	if err != nil {
-		return newHTTPError(http.StatusBadRequest, err.Error())
+		return response.Fail(w, http.StatusBadRequest, err.Error())
 	}
 
 	cashTx, err := h.cashService.CreateCashTransaction(req.Context(), userID, chi.URLParam(req, "portfolio_id"), input)
 	if err != nil {
-		return cashHTTPError(err, "failed to create cash transaction")
+		status, message := cashHTTPError(err, "failed to create cash transaction")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusCreated, NewCashTransactionResponse(cashTx))
@@ -128,12 +137,14 @@ func (h Handler) CreateCashTransaction(w http.ResponseWriter, req *http.Request)
 func (h Handler) ListCashTransactions(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	transactions, err := h.cashService.ListCashTransactions(req.Context(), userID, chi.URLParam(req, "portfolio_id"))
 	if err != nil {
-		return cashHTTPError(err, "failed to list cash transactions")
+		status, message := cashHTTPError(err, "failed to list cash transactions")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, NewCashTransactionListResponse(transactions))
@@ -142,12 +153,14 @@ func (h Handler) ListCashTransactions(w http.ResponseWriter, req *http.Request) 
 func (h Handler) GetCashTransaction(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	cashTx, err := h.cashService.GetCashTransaction(req.Context(), userID, chi.URLParam(req, "portfolio_id"), chi.URLParam(req, "transaction_id"))
 	if err != nil {
-		return cashHTTPError(err, "failed to get cash transaction")
+		status, message := cashHTTPError(err, "failed to get cash transaction")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, NewCashTransactionResponse(cashTx))
@@ -156,17 +169,19 @@ func (h Handler) GetCashTransaction(w http.ResponseWriter, req *http.Request) er
 func (h Handler) UpdateCashTransaction(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	input, err := bindCashTransactionRequest(req)
 	if err != nil {
-		return newHTTPError(http.StatusBadRequest, err.Error())
+		return response.Fail(w, http.StatusBadRequest, err.Error())
 	}
 
 	cashTx, err := h.cashService.UpdateCashTransaction(req.Context(), userID, chi.URLParam(req, "portfolio_id"), chi.URLParam(req, "transaction_id"), input)
 	if err != nil {
-		return cashHTTPError(err, "failed to update cash transaction")
+		status, message := cashHTTPError(err, "failed to update cash transaction")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, NewCashTransactionResponse(cashTx))
@@ -175,12 +190,14 @@ func (h Handler) UpdateCashTransaction(w http.ResponseWriter, req *http.Request)
 func (h Handler) DeleteCashTransaction(w http.ResponseWriter, req *http.Request) error {
 	userID, err := requiredUserID(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusUnauthorized, err.Error())
 	}
 
 	err = h.cashService.DeleteCashTransaction(req.Context(), userID, chi.URLParam(req, "portfolio_id"), chi.URLParam(req, "transaction_id"))
 	if err != nil {
-		return cashHTTPError(err, "failed to delete cash transaction")
+		status, message := cashHTTPError(err, "failed to delete cash transaction")
+		h.logRequestError(req, status, message, err)
+		return response.Fail(w, status, message)
 	}
 
 	return response.Success(w, http.StatusOK, nil)
@@ -253,124 +270,4 @@ type CashSnapshotResponse struct {
 	CurrencyCode    string  `json:"currency_code"`
 	CreatedAt       string  `json:"created_at"`
 	UpdatedAt       string  `json:"updated_at"`
-}
-
-func NewPortfolioCashResponse(cash repository.PortfolioCash) PortfolioCashResponse {
-	accounts := make([]PortfolioCashAccountResponse, 0, len(cash.Accounts))
-	for _, account := range cash.Accounts {
-		accounts = append(accounts, PortfolioCashAccountResponse{
-			AccountID:       account.AccountID,
-			AccountName:     account.AccountName,
-			Quantity:        account.Quantity,
-			TotalCost:       account.TotalCost,
-			UnrealizedPnL:   account.UnrealizedPnL,
-			TotalPnL:        account.TotalPnL,
-			TotalPnLPercent: account.TotalPnLPercent,
-			UpdatedAt:       formatTime(account.UpdatedAt),
-		})
-	}
-
-	return PortfolioCashResponse{
-		PortfolioID:     cash.PortfolioID,
-		AssetID:         cash.AssetID,
-		Symbol:          cash.Symbol,
-		Name:            cash.Name,
-		TotalCash:       cash.TotalCash,
-		TotalCost:       cash.TotalCost,
-		UnrealizedPnL:   cash.UnrealizedPnL,
-		RealizedPnL:     cash.RealizedPnL,
-		TotalPnL:        cash.TotalPnL,
-		TotalPnLPercent: cash.TotalPnLPercent,
-		CurrencyCode:    cash.CurrencyCode,
-		Accounts:        accounts,
-		UpdatedAt:       formatTime(cash.UpdatedAt),
-	}
-}
-
-func NewCashTransactionListResponse(transactions []repository.PortfolioCashTransaction) CashTransactionListResponse {
-	response := make([]CashTransactionItemResponse, 0, len(transactions))
-	for _, cashTx := range transactions {
-		response = append(response, newCashTransactionItemResponse(cashTx))
-	}
-	return response
-}
-
-func NewCashSnapshotListResponse(snapshots []repository.PortfolioCashSnapshot) CashSnapshotListResponse {
-	response := make([]CashSnapshotResponse, 0, len(snapshots))
-	for _, snapshot := range snapshots {
-		response = append(response, CashSnapshotResponse{
-			PortfolioID:     snapshot.PortfolioID,
-			AssetClassID:    snapshot.AssetClassID,
-			AssetClassCode:  snapshot.AssetClassCode,
-			SnapshotDate:    formatDate(snapshot.SnapshotDate),
-			TotalCost:       snapshot.TotalCost,
-			MarketValue:     snapshot.MarketValue,
-			UnrealizedPnL:   snapshot.UnrealizedPnL,
-			RealizedPnL:     snapshot.RealizedPnL,
-			TotalPnL:        snapshot.TotalPnL,
-			TotalPnLPercent: snapshot.TotalPnLPercent,
-			CurrencyCode:    snapshot.CurrencyCode,
-			CreatedAt:       formatTime(snapshot.CreatedAt),
-			UpdatedAt:       formatTime(snapshot.UpdatedAt),
-		})
-	}
-	return response
-}
-
-func NewCashTransactionResponse(cashTx repository.PortfolioCashTransaction) CashTransactionResponse {
-	return CashTransactionResponse{CashTransactionItemResponse: newCashTransactionItemResponse(cashTx)}
-}
-
-func newCashTransactionItemResponse(cashTx repository.PortfolioCashTransaction) CashTransactionItemResponse {
-	return CashTransactionItemResponse{
-		TransactionID:   cashTx.TransactionID,
-		PortfolioID:     cashTx.PortfolioID,
-		AccountID:       cashTx.AccountID,
-		AccountName:     cashTx.AccountName,
-		AssetID:         cashTx.AssetID,
-		TransactionType: cashTx.TransactionType,
-		TransactionDate: formatTime(cashTx.TransactionDate),
-		Amount:          cashTx.Amount,
-		CostAmount:      cashTx.CostAmount,
-		CashFlowAmount:  cashTx.CashFlowAmount(),
-		CostFlowAmount:  cashTx.CostFlowAmount(),
-		PnLEffectAmount: cashTx.PnLEffectAmount(),
-		CurrencyCode:    cashTx.CurrencyCode,
-		Notes:           cashTx.Notes,
-		CreatedAt:       formatTime(cashTx.CreatedAt),
-		UpdatedAt:       formatTime(cashTx.UpdatedAt),
-	}
-}
-func bindCashTransactionRequest(req *http.Request) (service.CashTransactionInput, error) {
-	var request CashTransactionRequest
-	if err := binding.BindJSON(req.Body, &request); err != nil {
-		return service.CashTransactionInput{}, errors.New("invalid request body")
-	}
-
-	transactionDate, err := parseOptionalRFC3339(request.TransactionDate, "transaction_date")
-	if err != nil {
-		return service.CashTransactionInput{}, err
-	}
-
-	return service.CashTransactionInput{
-		AccountID:       request.AccountID,
-		AccountName:     request.AccountName,
-		TransactionType: request.TransactionType,
-		Amount:          request.Amount,
-		CostAmount:      request.CostAmount,
-		TransactionDate: transactionDate,
-		Notes:           request.Notes,
-	}, nil
-}
-func cashHTTPError(err error, fallback string) error {
-	return mapPortfolioHTTPError(err, fallback,
-		httpErrorRule{service.ErrInvalidPortfolioID, http.StatusBadRequest, "portfolio_id is required"},
-		httpErrorRule{service.ErrInvalidTransactionID, http.StatusBadRequest, "transaction_id is required"},
-		httpErrorRule{service.ErrInvalidCashAccount, http.StatusBadRequest, "valid account_id or account_name is required"},
-		httpErrorRule{service.ErrInvalidCashAmount, http.StatusBadRequest, "amount must be greater than zero"},
-		httpErrorRule{service.ErrInvalidTransactionType, http.StatusBadRequest, "invalid transaction_type"},
-		httpErrorRule{service.ErrInvalidSnapshotRange, http.StatusBadRequest, "invalid snapshot range"},
-		httpErrorRule{repository.ErrPortfolioNotFound, http.StatusNotFound, "portfolio not found"},
-		httpErrorRule{repository.ErrCashTransactionNotFound, http.StatusNotFound, "cash transaction not found"},
-	)
 }

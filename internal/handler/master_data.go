@@ -3,9 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
-	"time"
 
-	"github.com/WahyuSiddarta/be_saham_chi/internal/repository"
 	binding "github.com/WahyuSiddarta/be_saham_chi/internal/request"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/response"
 	"github.com/WahyuSiddarta/be_saham_chi/internal/service"
@@ -26,7 +24,8 @@ type MasterDataResponse struct {
 func (h Handler) ListMasterData(w http.ResponseWriter, req *http.Request) error {
 	items, err := h.masterDataService.ListMasterData(req.Context())
 	if err != nil {
-		return newHTTPError(http.StatusInternalServerError, "failed to list master data").SetInternal(err)
+		h.logRequestError(req, http.StatusInternalServerError, "failed to list master data", err)
+		return response.Fail(w, http.StatusInternalServerError, "failed to list master data")
 	}
 
 	data := make([]MasterDataResponse, 0, len(items))
@@ -39,25 +38,19 @@ func (h Handler) ListMasterData(w http.ResponseWriter, req *http.Request) error 
 func (h Handler) UpdateMasterData(w http.ResponseWriter, req *http.Request) error {
 	var request UpdateMasterDataRequest
 	if err := binding.BindJSON(req.Body, &request); err != nil || request.Value == nil {
-		return newHTTPError(http.StatusBadRequest, "invalid request body")
+		return response.Fail(w, http.StatusBadRequest, "invalid request body")
 	}
 
 	item, err := h.masterDataService.UpdateMasterData(req.Context(), chi.URLParam(req, "key"), *request.Value)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidMasterDataKey) || errors.Is(err, service.ErrInvalidMasterDataValue) {
-			return newHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
+			h.logRequestError(req, http.StatusBadRequest, err.Error(), err)
+			return response.Fail(w, http.StatusBadRequest, err.Error())
 		}
-		return newHTTPError(http.StatusInternalServerError, "failed to update master data").SetInternal(err)
+		h.logRequestError(req, http.StatusInternalServerError, "failed to update master data", err)
+		return response.Fail(w, http.StatusInternalServerError, "failed to update master data")
 	}
 
 	data := newMasterDataResponse(item)
 	return response.Success(w, http.StatusOK, data)
-}
-
-func newMasterDataResponse(item repository.MasterData) MasterDataResponse {
-	return MasterDataResponse{
-		Key:       item.Key,
-		Value:     item.Value,
-		UpdatedAt: item.UpdatedAt.UTC().Format(time.RFC3339),
-	}
 }

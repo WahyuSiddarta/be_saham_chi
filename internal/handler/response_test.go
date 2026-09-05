@@ -74,11 +74,12 @@ func TestDomainPayloadsHaveOneEnvelope(t *testing.T) {
 type deletePortfolioStore struct {
 	service.PortfolioRepository
 	userID, portfolioID, targetID string
+	err                           error
 }
 
 func (s *deletePortfolioStore) DeleteAndMove(_ context.Context, userID, portfolioID, targetID string) error {
 	s.userID, s.portfolioID, s.targetID = userID, portfolioID, targetID
-	return nil
+	return s.err
 }
 func TestDeleteReturnsSuccessEnvelope(t *testing.T) {
 	store := &deletePortfolioStore{}

@@ -18,7 +18,7 @@ func (h Handler) GetCommodityQuote(w http.ResponseWriter, req *http.Request) err
 	commodity := chi.URLParam(req, "commodity")
 	userID, ok := auth.UserIDFromContext(req.Context())
 	if !ok {
-		return newHTTPError(http.StatusUnauthorized, "missing user_id")
+		return response.Fail(w, http.StatusUnauthorized, "missing user_id")
 	}
 
 	applogger.Info().
@@ -29,9 +29,11 @@ func (h Handler) GetCommodityQuote(w http.ResponseWriter, req *http.Request) err
 	quote, err := h.commodityService.GetQuote(req.Context(), commodity)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCommodity) {
-			return newHTTPError(http.StatusNotFound, "commodity not found").SetInternal(err)
+			h.logRequestError(req, http.StatusNotFound, "commodity not found", err)
+			return response.Fail(w, http.StatusNotFound, "commodity not found")
 		}
-		return newHTTPError(http.StatusBadGateway, "failed to fetch commodity quote").SetInternal(err)
+		h.logRequestError(req, http.StatusBadGateway, "failed to fetch commodity quote", err)
+		return response.Fail(w, http.StatusBadGateway, "failed to fetch commodity quote")
 	}
 
 	return response.Success(w, http.StatusOK, NewQuoteResponse(quote))
@@ -46,12 +48,15 @@ func (h Handler) GetCommodityKlines(w http.ResponseWriter, req *http.Request) er
 	klines, err := h.commodityService.GetKlines(req.Context(), chi.URLParam(req, "commodity"), dataRange)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCommodity) {
-			return newHTTPError(http.StatusNotFound, "commodity not found").SetInternal(err)
+			h.logRequestError(req, http.StatusNotFound, "commodity not found", err)
+			return response.Fail(w, http.StatusNotFound, "commodity not found")
 		}
 		if errors.Is(err, service.ErrInvalidRange) {
-			return newHTTPError(http.StatusBadRequest, "invalid range").SetInternal(err)
+			h.logRequestError(req, http.StatusBadRequest, "invalid range", err)
+			return response.Fail(w, http.StatusBadRequest, "invalid range")
 		}
-		return newHTTPError(http.StatusBadGateway, "failed to fetch commodity kline").SetInternal(err)
+		h.logRequestError(req, http.StatusBadGateway, "failed to fetch commodity kline", err)
+		return response.Fail(w, http.StatusBadGateway, "failed to fetch commodity kline")
 	}
 
 	return response.Success(w, http.StatusOK, NewKlineListResponse(klines))
@@ -68,19 +73,6 @@ type QuoteResponse struct {
 	FetchedAt time.Time         `json:"fetched_at"`
 }
 
-func NewQuoteResponse(quote repository.MarketPrice) QuoteResponse {
-	return QuoteResponse{
-		Symbol:    quote.Symbol,
-		Open:      quote.Open,
-		High:      quote.High,
-		Low:       quote.Low,
-		Close:     quote.Close,
-		Volume:    quote.Volume,
-		Source:    quote.Source,
-		FetchedAt: quote.FetchedAt,
-	}
-}
-
 type KlineListResponse = []KlineResponse
 
 type KlineResponse struct {
@@ -94,24 +86,4 @@ type KlineResponse struct {
 	Volume    int64             `json:"volume"`
 	Source    repository.Source `json:"source"`
 	FetchedAt time.Time         `json:"fetched_at"`
-}
-
-func NewKlineListResponse(klines []repository.MarketKline) KlineListResponse {
-	response := make([]KlineResponse, 0, len(klines))
-	for _, kline := range klines {
-		response = append(response, KlineResponse{
-			Symbol:    kline.Symbol,
-			Interval:  kline.Interval,
-			OpenTime:  kline.OpenTime,
-			Open:      kline.Open,
-			High:      kline.High,
-			Low:       kline.Low,
-			Close:     kline.Close,
-			Volume:    kline.Volume,
-			Source:    kline.Source,
-			FetchedAt: kline.FetchedAt,
-		})
-	}
-
-	return response
 }

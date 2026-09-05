@@ -86,31 +86,27 @@ type StockFundamentalsSnapshot struct {
 	UpdatedAt time.Time         `json:"updated_at"`
 }
 
-func newStockItemResponse(stock repository.Stock) StockItemResponse {
-	return StockItemResponse{
-		Ticker: stock.Ticker, Name: stock.Name, Active: stock.Active,
-		CreatedAt: stock.CreatedAt, UpdatedAt: stock.UpdatedAt,
-	}
-}
-
 func (h Handler) CreateStock(w http.ResponseWriter, req *http.Request) error {
 	var request CreateStockRequest
 	if err := binding.BindJSON(req.Body, &request); err != nil {
-		return newHTTPError(http.StatusBadRequest, "invalid request body")
+		return response.Fail(w, http.StatusBadRequest, "invalid request body")
 	}
 	stock, err := h.stockService.CreateStock(req.Context(), request.Ticker, request.Name)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidStock) {
-			return newHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
+			h.logRequestError(req, http.StatusBadRequest, err.Error(), err)
+			return response.Fail(w, http.StatusBadRequest, err.Error())
 		}
-		return newHTTPError(http.StatusInternalServerError, "failed to create stock").SetInternal(err)
+		h.logRequestError(req, http.StatusInternalServerError, "failed to create stock", err)
+		return response.Fail(w, http.StatusInternalServerError, "failed to create stock")
 	}
 	return response.Success(w, http.StatusCreated, StockResponse{StockItemResponse: newStockItemResponse(stock)})
 }
 func (h Handler) ListStock(w http.ResponseWriter, req *http.Request) error {
 	stocks, err := h.stockService.ListStocks(req.Context())
 	if err != nil {
-		return newHTTPError(http.StatusInternalServerError, "failed to list stocks").SetInternal(err)
+		h.logRequestError(req, http.StatusInternalServerError, "failed to list stocks", err)
+		return response.Fail(w, http.StatusInternalServerError, "failed to list stocks")
 	}
 	data := make([]StockItemResponse, 0, len(stocks))
 	for _, stock := range stocks {
@@ -123,13 +119,14 @@ func (h Handler) SearchTickers(w http.ResponseWriter, req *http.Request) error {
 	if raw := req.URL.Query().Get("limit"); raw != "" {
 		parsed, err := strconv.Atoi(raw)
 		if err != nil || parsed < 1 {
-			return newHTTPError(http.StatusBadRequest, "limit must be a positive integer")
+			return response.Fail(w, http.StatusBadRequest, "limit must be a positive integer")
 		}
 		limit = parsed
 	}
 	stocks, err := h.stockService.SearchTickers(req.Context(), req.URL.Query().Get("q"), limit)
 	if err != nil {
-		return newHTTPError(http.StatusInternalServerError, "failed to search stock tickers").SetInternal(err)
+		h.logRequestError(req, http.StatusInternalServerError, "failed to search stock tickers", err)
+		return response.Fail(w, http.StatusInternalServerError, "failed to search stock tickers")
 	}
 	data := make([]StockTickerResponse, 0, len(stocks))
 	for _, stock := range stocks {
@@ -140,58 +137,68 @@ func (h Handler) SearchTickers(w http.ResponseWriter, req *http.Request) error {
 func (h Handler) GetStock(w http.ResponseWriter, req *http.Request) error {
 	stock, err := h.stockService.GetStock(req.Context(), chi.URLParam(req, "ticker"))
 	if errors.Is(err, service.ErrStockNotFound) {
-		return newHTTPError(http.StatusNotFound, "stock not found").SetInternal(err)
+		h.logRequestError(req, http.StatusNotFound, "stock not found", err)
+		return response.Fail(w, http.StatusNotFound, "stock not found")
 	}
 	if err != nil {
-		return newHTTPError(http.StatusInternalServerError, "failed to get stock").SetInternal(err)
+		h.logRequestError(req, http.StatusInternalServerError, "failed to get stock", err)
+		return response.Fail(w, http.StatusInternalServerError, "failed to get stock")
 	}
 	return response.Success(w, http.StatusOK, StockResponse{StockItemResponse: newStockItemResponse(stock)})
 }
 func (h Handler) UpdateStock(w http.ResponseWriter, req *http.Request) error {
 	var request UpdateStockRequest
 	if err := binding.BindJSON(req.Body, &request); err != nil {
-		return newHTTPError(http.StatusBadRequest, "invalid request body")
+		return response.Fail(w, http.StatusBadRequest, "invalid request body")
 	}
 	stock, err := h.stockService.UpdateStockName(req.Context(), chi.URLParam(req, "ticker"), request.Name)
 	if errors.Is(err, service.ErrInvalidStockName) {
-		return newHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
+		h.logRequestError(req, http.StatusBadRequest, err.Error(), err)
+		return response.Fail(w, http.StatusBadRequest, err.Error())
 	}
 	if errors.Is(err, service.ErrStockNotFound) {
-		return newHTTPError(http.StatusNotFound, "stock not found").SetInternal(err)
+		h.logRequestError(req, http.StatusNotFound, "stock not found", err)
+		return response.Fail(w, http.StatusNotFound, "stock not found")
 	}
 	if err != nil {
-		return newHTTPError(http.StatusInternalServerError, "failed to update stock").SetInternal(err)
+		h.logRequestError(req, http.StatusInternalServerError, "failed to update stock", err)
+		return response.Fail(w, http.StatusInternalServerError, "failed to update stock")
 	}
 	return response.Success(w, http.StatusOK, StockResponse{StockItemResponse: newStockItemResponse(stock)})
 }
 func (h Handler) UpdateStockStatus(w http.ResponseWriter, req *http.Request) error {
 	var request UpdateStockStatusRequest
 	if err := binding.BindJSON(req.Body, &request); err != nil || request.Active == nil {
-		return newHTTPError(http.StatusBadRequest, "active is required")
+		return response.Fail(w, http.StatusBadRequest, "active is required")
 	}
 	stock, err := h.stockService.UpdateStockStatus(req.Context(), chi.URLParam(req, "ticker"), *request.Active)
 	if errors.Is(err, service.ErrStockNotFound) {
-		return newHTTPError(http.StatusNotFound, "stock not found").SetInternal(err)
+		h.logRequestError(req, http.StatusNotFound, "stock not found", err)
+		return response.Fail(w, http.StatusNotFound, "stock not found")
 	}
 	if err != nil {
-		return newHTTPError(http.StatusInternalServerError, "failed to update stock status").SetInternal(err)
+		h.logRequestError(req, http.StatusInternalServerError, "failed to update stock status", err)
+		return response.Fail(w, http.StatusInternalServerError, "failed to update stock status")
 	}
 	return response.Success(w, http.StatusOK, StockResponse{StockItemResponse: newStockItemResponse(stock)})
 }
 func (h Handler) GetStockKlines(w http.ResponseWriter, req *http.Request) error {
 	from, to, err := stockKlineDateRange(req)
 	if err != nil {
-		return err
+		return response.Fail(w, http.StatusBadRequest, err.Error())
 	}
 	items, err := h.stockService.GetKlines(req.Context(), chi.URLParam(req, "ticker"), from, to)
 	if err != nil {
 		if errors.Is(err, service.ErrStockNotFound) {
-			return newHTTPError(http.StatusNotFound, "stock not found").SetInternal(err)
+			h.logRequestError(req, http.StatusNotFound, "stock not found", err)
+			return response.Fail(w, http.StatusNotFound, "stock not found")
 		}
 		if errors.Is(err, service.ErrInactiveStock) {
-			return newHTTPError(http.StatusNotFound, "stock not found").SetInternal(err)
+			h.logRequestError(req, http.StatusNotFound, "stock not found", err)
+			return response.Fail(w, http.StatusNotFound, "stock not found")
 		}
-		return newHTTPError(http.StatusBadGateway, "failed to get stock kline").SetInternal(err)
+		h.logRequestError(req, http.StatusBadGateway, "failed to get stock kline", err)
+		return response.Fail(w, http.StatusBadGateway, "failed to get stock kline")
 	}
 	return response.Success(w, http.StatusOK, stockKlinesToResponse(items))
 }
@@ -200,9 +207,11 @@ func (h Handler) GetStockQuote(w http.ResponseWriter, req *http.Request) error {
 	quote, err := h.stockService.GetQuote(req.Context(), chi.URLParam(req, "ticker"))
 	if err != nil {
 		if errors.Is(err, service.ErrStockNotFound) || errors.Is(err, service.ErrInactiveStock) {
-			return newHTTPError(http.StatusNotFound, "stock not found").SetInternal(err)
+			h.logRequestError(req, http.StatusNotFound, "stock not found", err)
+			return response.Fail(w, http.StatusNotFound, "stock not found")
 		}
-		return newHTTPError(http.StatusBadGateway, "failed to get stock quote").SetInternal(err)
+		h.logRequestError(req, http.StatusBadGateway, "failed to get stock quote", err)
+		return response.Fail(w, http.StatusBadGateway, "failed to get stock quote")
 	}
 	return response.Success(w, http.StatusOK, StockQuoteResponse{
 		Symbol: quote.Symbol, Open: quote.Open, High: quote.High,
@@ -215,9 +224,11 @@ func (h Handler) GetFundamentals(w http.ResponseWriter, req *http.Request) error
 	fundamentals, err := h.stockService.GetFundamentals(req.Context(), chi.URLParam(req, "ticker"))
 	if err != nil {
 		if errors.Is(err, service.ErrStockNotFound) || errors.Is(err, service.ErrInactiveStock) {
-			return newHTTPError(http.StatusNotFound, "stock fundamentals not found").SetInternal(err)
+			h.logRequestError(req, http.StatusNotFound, "stock fundamentals not found", err)
+			return response.Fail(w, http.StatusNotFound, "stock fundamentals not found")
 		}
-		return newHTTPError(http.StatusInternalServerError, "failed to read stock fundamentals").SetInternal(err)
+		h.logRequestError(req, http.StatusInternalServerError, "failed to read stock fundamentals", err)
+		return response.Fail(w, http.StatusInternalServerError, "failed to read stock fundamentals")
 	}
 	return response.Success(w, http.StatusOK, StockFundamentalsResponse{
 		Fundamentals: StockFundamentalsSnapshot{
@@ -226,37 +237,4 @@ func (h Handler) GetFundamentals(w http.ResponseWriter, req *http.Request) error
 			UpdatedAt: fundamentals.UpdatedAt,
 		},
 	})
-}
-
-func stockKlineDateRange(req *http.Request) (time.Time, time.Time, error) {
-	to := time.Now().UTC()
-	from := to.AddDate(0, -1, 0)
-	var err error
-	if raw := req.URL.Query().Get("from"); raw != "" {
-		from, err = time.Parse("2006-01-02", raw)
-		if err != nil {
-			return time.Time{}, time.Time{}, newHTTPError(http.StatusBadRequest, "invalid from date")
-		}
-	}
-	if raw := req.URL.Query().Get("to"); raw != "" {
-		to, err = time.Parse("2006-01-02", raw)
-		if err != nil {
-			return time.Time{}, time.Time{}, newHTTPError(http.StatusBadRequest, "invalid to date")
-		}
-	}
-	if from.After(to) {
-		return time.Time{}, time.Time{}, newHTTPError(http.StatusBadRequest, "from must not be after to")
-	}
-	return from, to, nil
-}
-func stockKlinesToResponse(items []repository.StockKline) []StockKlineResponse {
-	out := make([]StockKlineResponse, 0, len(items))
-	for _, k := range items {
-		out = append(out, StockKlineResponse{
-			Symbol: k.Symbol, Interval: k.Interval, OpenTime: k.OpenTime,
-			Open: k.Open, High: k.High, Low: k.Low, Close: k.Close,
-			Volume: k.Volume, Source: k.Source, FetchedAt: k.FetchedAt,
-		})
-	}
-	return out
 }
