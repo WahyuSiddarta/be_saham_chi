@@ -141,6 +141,9 @@ func (app Application) routes() http.Handler {
 
 	registerRoutes(privateRoute, handlers, "/stocks", "", []apiRoute{
 		{http.MethodGet, "/tickers", "", handlers.SearchTickers},
+		{http.MethodGet, "/fundamental/{ticker}/income-statement", "", handlers.GetIncomeStatement},
+		{http.MethodGet, "/fundamental/{ticker}/balance-sheet", "", handlers.GetBalanceSheet},
+		{http.MethodGet, "/fundamental/{ticker}/cash-flow", "", handlers.GetCashFlow},
 		{http.MethodGet, "/{ticker}/quote", "", handlers.GetStockQuote},
 		{http.MethodGet, "/{ticker}/kline", "", handlers.GetStockKlines},
 		{http.MethodGet, "/{ticker}/fundamentals", "", handlers.GetFundamentals},

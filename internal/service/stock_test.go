@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -9,15 +10,19 @@ import (
 )
 
 type stubStockRepository struct {
-	query        string
-	limit        int
-	stock        repository.Stock
-	listed       [][]repository.StockKline
-	listCalls    int
-	upserted     []repository.StockKline
-	listSource   repository.Source
-	listInterval string
-	fundamentals repository.StockFundamentals
+	query            string
+	limit            int
+	stock            repository.Stock
+	listed           [][]repository.StockKline
+	listCalls        int
+	upserted         []repository.StockKline
+	listSource       repository.Source
+	listInterval     string
+	fundamentals     repository.StockFundamentals
+	financialSummary repository.StockFinancialStatementSummary
+	financialValues  []repository.StockFinancialStatementValue
+	financialReport  int
+	financialFilter  repository.StockFinancialStatementFilter
 }
 
 func (r *stubStockRepository) CreateStock(context.Context, repository.Stock) (repository.Stock, error) {
@@ -54,6 +59,14 @@ func (r *stubStockRepository) UpsertKlines(_ context.Context, items []repository
 }
 func (r *stubStockRepository) GetFundamentals(context.Context, string) (repository.StockFundamentals, error) {
 	return r.fundamentals, nil
+}
+func (r *stubStockRepository) GetFinancialStatementSummary(_ context.Context, _ string, report int, filter repository.StockFinancialStatementFilter) (repository.StockFinancialStatementSummary, error) {
+	r.financialReport, r.financialFilter = report, filter
+	return r.financialSummary, nil
+}
+func (r *stubStockRepository) ListFinancialStatementValues(_ context.Context, _ string, report int, filter repository.StockFinancialStatementFilter) ([]repository.StockFinancialStatementValue, error) {
+	r.financialReport, r.financialFilter = report, filter
+	return r.financialValues, nil
 }
 
 type stubYahooStockProvider struct {
@@ -131,6 +144,34 @@ func TestGetFundamentalsReadsStoredStockbitSnapshot(t *testing.T) {
 	}
 	if fundamentals.Ticker != "BBCA" || len(fundamentals.Payload) == 0 || !fundamentals.ScrapedAt.Equal(scrapedAt) {
 		t.Fatalf("unexpected fundamentals: %#v", fundamentals)
+	}
+}
+
+func TestGetFinancialStatementMapsStatementAndPaginatesRows(t *testing.T) {
+	scrapedAt := time.Date(2026, time.September, 7, 9, 1, 0, 0, time.UTC)
+	value := "123000000000"
+	repoStub := &stubStockRepository{
+		stock:            repository.Stock{Ticker: "BBCA", Active: true},
+		financialSummary: repository.StockFinancialStatementSummary{ScrapedAt: scrapedAt, TotalRows: 21},
+		financialValues: []repository.StockFinancialStatementValue{{
+			RowID: "row1:account:0", RowRole: "account", MetricKey: "total_revenue", MetricName: "Total Revenue",
+			Label: "Total Pendapatan", PeriodKey: "Q226", PeriodLabel: "Q2 2026", PeriodYear: 2026,
+			PeriodQuarter: sql.NullInt64{Int64: 2, Valid: true}, PeriodBasis: "standalone_quarter",
+			Value: sql.NullString{String: value, Valid: true}, DisplayValue: "123 B",
+		}},
+	}
+	stockService := NewStockService(nil, repoStub)
+	filter := repository.StockFinancialStatementFilter{ReportType: "quarterly", Page: 2, PerPage: 10}
+
+	statement, err := stockService.GetFinancialStatement(context.Background(), " bbca ", FinancialStatementIncome, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repoStub.financialReport != 1 || statement.Ticker != "BBCA" || statement.TotalPages != 3 || len(statement.Rows) != 1 || len(statement.Periods) != 1 {
+		t.Fatalf("statement=%+v report=%d", statement, repoStub.financialReport)
+	}
+	if statement.Rows[0].Values[0].Value == nil || *statement.Rows[0].Values[0].Value != value || statement.Periods[0].Quarter == nil || *statement.Periods[0].Quarter != 2 {
+		t.Fatalf("numeric or period mapping changed: %+v", statement)
 	}
 }
 

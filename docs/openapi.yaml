@@ -250,6 +250,69 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+  /api/v1/private/stocks/fundamental/{ticker}/income-statement:
+    get:
+      tags: [Stocks]
+      summary: Get a paginated income statement
+      description: Requires `market.stock.read`. Reads income-statement rows from the ticker's latest stored Stockbit capture. Pagination applies to statement rows; every returned row contains all periods matching the period filters. Exact numeric values are strings to preserve PostgreSQL numeric precision.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StockTickerPath"
+        - $ref: "#/components/parameters/FinancialReportTypeQuery"
+        - $ref: "#/components/parameters/FinancialFromYearQuery"
+        - $ref: "#/components/parameters/FinancialToYearQuery"
+        - $ref: "#/components/parameters/FinancialQuarterQuery"
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PerPageQuery"
+      responses:
+        "200": {description: Paginated income-statement rows., content: {application/json: {schema: {$ref: "#/components/schemas/StockFinancialStatementResponse"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /api/v1/private/stocks/fundamental/{ticker}/balance-sheet:
+    get:
+      tags: [Stocks]
+      summary: Get a paginated balance sheet
+      description: Requires `market.stock.read`. Reads balance-sheet rows from the ticker's latest stored Stockbit capture. Pagination applies to statement rows; every returned row contains all periods matching the period filters. Exact numeric values are strings to preserve PostgreSQL numeric precision.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StockTickerPath"
+        - $ref: "#/components/parameters/FinancialReportTypeQuery"
+        - $ref: "#/components/parameters/FinancialFromYearQuery"
+        - $ref: "#/components/parameters/FinancialToYearQuery"
+        - $ref: "#/components/parameters/FinancialQuarterQuery"
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PerPageQuery"
+      responses:
+        "200": {description: Paginated balance-sheet rows., content: {application/json: {schema: {$ref: "#/components/schemas/StockFinancialStatementResponse"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /api/v1/private/stocks/fundamental/{ticker}/cash-flow:
+    get:
+      tags: [Stocks]
+      summary: Get a paginated cash-flow statement
+      description: Requires `market.stock.read`. Reads cash-flow rows from the ticker's latest stored Stockbit capture. Pagination applies to statement rows; every returned row contains all periods matching the period filters. Exact numeric values are strings to preserve PostgreSQL numeric precision.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StockTickerPath"
+        - $ref: "#/components/parameters/FinancialReportTypeQuery"
+        - $ref: "#/components/parameters/FinancialFromYearQuery"
+        - $ref: "#/components/parameters/FinancialToYearQuery"
+        - $ref: "#/components/parameters/FinancialQuarterQuery"
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PerPageQuery"
+      responses:
+        "200": {description: Paginated cash-flow rows., content: {application/json: {schema: {$ref: "#/components/schemas/StockFinancialStatementResponse"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /api/v1/private/admin/stocks:
     get:
       tags: [Stocks]
@@ -1397,6 +1460,38 @@ components:
       in: path
       required: true
       schema: {type: string, example: BBCA}
+    FinancialReportTypeQuery:
+      name: report_type
+      in: query
+      required: false
+      description: Select quarterly or annual statement data.
+      schema: {type: string, enum: [quarterly, annual], default: quarterly}
+    FinancialFromYearQuery:
+      name: from_year
+      in: query
+      required: false
+      schema: {type: integer, minimum: 1, example: 2022}
+    FinancialToYearQuery:
+      name: to_year
+      in: query
+      required: false
+      schema: {type: integer, minimum: 1, example: 2026}
+    FinancialQuarterQuery:
+      name: quarter
+      in: query
+      required: false
+      description: Optional quarter filter. Valid only when report_type is quarterly.
+      schema: {type: integer, minimum: 1, maximum: 4}
+    PageQuery:
+      name: page
+      in: query
+      required: false
+      schema: {type: integer, minimum: 1, default: 1}
+    PerPageQuery:
+      name: per_page
+      in: query
+      required: false
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
     CommodityPath:
       name: commodity
       in: path
@@ -2585,6 +2680,73 @@ components:
         payload: {$ref: "#/components/schemas/StockbitFundamentalsPayload"}
         scraped_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
+    StockFinancialStatementResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status: {$ref: "#/components/schemas/StatusOK"}
+        data: {$ref: "#/components/schemas/StockFinancialStatement"}
+    StockFinancialStatement:
+      type: object
+      required: [ticker, statement_type, report_type, source, scraped_at, periods, rows, pagination]
+      properties:
+        ticker: {type: string, example: BBCA}
+        statement_type: {type: string, enum: [income_statement, balance_sheet, cash_flow]}
+        report_type: {type: string, enum: [quarterly, annual]}
+        source: {type: string, enum: [stockbit]}
+        scraped_at: {type: string, format: date-time}
+        periods:
+          type: array
+          items: {$ref: "#/components/schemas/StockFinancialPeriod"}
+        rows:
+          type: array
+          items: {$ref: "#/components/schemas/StockFinancialRow"}
+        pagination: {$ref: "#/components/schemas/Pagination"}
+    StockFinancialPeriod:
+      type: object
+      required: [key, label, year, quarter, basis]
+      properties:
+        key: {type: string, example: Q226}
+        label: {type: string, example: Q2 2026}
+        year: {type: integer, example: 2026}
+        quarter: {type: integer, minimum: 1, maximum: 4, nullable: true}
+        basis: {type: string, enum: [standalone_quarter, point_in_time, annual]}
+    StockFinancialRow:
+      type: object
+      required: [row_id, row_role, metric_key, metric_name, label, label_en, label_id, values]
+      properties:
+        row_id: {type: string, example: "row1:account:0"}
+        row_role: {type: string, example: account}
+        metric_key: {type: string, example: total_revenue}
+        metric_name: {type: string, example: Total Revenue}
+        label: {type: string, example: Total Pendapatan}
+        label_en: {type: string, nullable: true, example: Total Revenue}
+        label_id: {type: string, nullable: true, example: Total Pendapatan}
+        values:
+          type: array
+          items: {$ref: "#/components/schemas/StockFinancialValue"}
+    StockFinancialValue:
+      type: object
+      required: [period_key, currency, value, is_missing, display_value, percentage]
+      properties:
+        period_key: {type: string, example: Q226}
+        currency: {type: string, nullable: true, example: idr}
+        value:
+          type: string
+          nullable: true
+          description: Exact PostgreSQL numeric rendered as a decimal string; null when the source value is missing.
+          example: "123000000000"
+        is_missing: {type: boolean}
+        display_value: {type: string, example: 123 B}
+        percentage: {type: string, nullable: true, example: "100"}
+    Pagination:
+      type: object
+      required: [page, per_page, total_rows, total_pages]
+      properties:
+        page: {type: integer, minimum: 1, example: 1}
+        per_page: {type: integer, minimum: 1, maximum: 100, example: 20}
+        total_rows: {type: integer, minimum: 0, example: 52}
+        total_pages: {type: integer, minimum: 0, example: 3}
     StockbitFundamentalsPayload:
       type: object
       required: [currentValuation, perShare, solvency, managementEffectiveness, profitability, growth, dividend, marketRank, incomeStatement, balanceSheet, cashFlowStatement, dividendHistory, marketOverview]
