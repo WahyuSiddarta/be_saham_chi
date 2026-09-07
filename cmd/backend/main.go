@@ -75,13 +75,6 @@ func main() {
 	app.database = databasePool
 	defer app.database.Close()
 
-	schemaContext, cancelSchema := context.WithTimeout(context.Background(), 10*time.Second)
-	err = database.EnsureTables(schemaContext, app.database)
-	cancelSchema()
-	if err != nil {
-		Log.Fatal().Err(err).Msg("ensure application tables")
-	}
-
 	server := &http.Server{
 		Addr:    app.config.addr,
 		Handler: app.routes(),

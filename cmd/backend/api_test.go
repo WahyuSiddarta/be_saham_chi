@@ -198,7 +198,7 @@ func TestAllRoutesUseVersionPrefix(t *testing.T) {
 
 func TestPublicUtilityRoutes(t *testing.T) {
 	// ServeFile resolves docs/openapi.yaml from the application working directory.
-	t.Chdir("..")
+	t.Chdir("../..")
 	router := testApplication().routes()
 	for _, tc := range []struct{ path, content string }{
 		{"/api/v1/public/health", `"service":"healthy"`},

@@ -5,7 +5,7 @@ sqlx repository. The Echo project remains available as the contract reference.
 
 ## Routing
 
-`cmd/api.go` registers `/api/v1/public` and `/api/v1/private` directly,
+`cmd/backend/api.go` registers `/api/v1/public` and `/api/v1/private` directly,
 with resource groups nested inside them:
 
 - `/public/auth`: registration and login.
@@ -18,7 +18,7 @@ with resource groups nested inside them:
 - `/private/portfolios`: portfolio CRUD.
 - `/private/portfolio/{portfolio_id}`: cash, bonds, gold, and their transactions.
 
-`cmd/common.go` registers one table per resource, with its path and permission
+`cmd/backend/common.go` registers one table per resource, with its path and permission
 prefix specified once. Each entry lists its HTTP method, relative path,
 permission action, and handler. For example, `portfolio.cash` plus `read` requires
 `portfolio.cash.read`. Empty actions use the group's middleware. Special actions,
@@ -93,7 +93,7 @@ Use `.env.example` for settings. Alongside the existing Chi settings, configure
 your local `.env`. For existing V2 tokens, retain V2's JWT secret and issuer.
 
 Point `DATABASE_URL` at the current V2 schema or a new development database.
-Startup prepares the required tables and ACL seeds using sqlx. It also adds the
+The migration command prepares the required tables and ACL seeds using sqlx. It also adds the
 registration `role_id` column to databases created by the earlier Chi prototype.
 Historical V2 table/column deletion and data backfills are not replayed: an older
 pre-current-V2 database needs its existing migration procedure before use.
@@ -102,6 +102,62 @@ Stock fundamentals remain read-only in this backend; the scraper owns writes.
 Stock klines retain their database-first Yahoo cache behavior. Registration and
 portfolio mutations retain transaction boundaries. Shutdown remains bounded and
 closes the HTTP server before the database pool.
+
+## Build and run
+
+Build the two applications separately from the repository root:
+
+```sh
+go build -o bin/migrate ./cmd/migrate
+go build -o bin/backend ./cmd/backend
+```
+
+Run them from the repository root so `.env` and `docs/openapi.yaml` resolve:
+
+```sh
+./bin/migrate
+# Start the backend only after migration succeeds.
+./bin/backend
+```
+
+`migrate` initializes tables, applies the existing schema updates, and seeds
+roles, ACLs, and master data, then exits. The PostgreSQL database itself must
+already exist. It requires only the `DATABASE_*` settings from `.env.example`,
+logs to stdout, and exits nonzero on failure. Connection setup has a 10-second
+timeout; schema setup has a five-minute timeout. SIGINT/SIGTERM cancels setup
+and closes the database pool. Existing setup statements are reused; this does
+not introduce versioned migrations or rollback commands.
+
+`backend` only connects to the prepared database and serves the API; startup
+no longer changes schema or seeds data. Run `migrate` before the first start
+and whenever deploying schema or seed changes. For development, use
+`go run ./cmd/migrate` and `go run ./cmd/backend` respectively. The old
+`go run ./cmd` entry point has been replaced.
+
+## Linux AMD64 release build
+
+Build both applications for Ubuntu or another Linux AMD64 host:
+
+```sh
+./build-live.sh
+```
+
+If Go is not on your PATH, pass its executable explicitly:
+
+```sh
+./build-live.sh /Volumes/KyoMac/go/bin/go
+```
+
+The script produces `bin/linux-amd64/backend` and `bin/linux-amd64/migrate`
+with CGO disabled, baseline AMD64 compatibility, trimmed source paths, and
+stripped debug symbols. It also includes `docs/openapi.yaml` and `.env.example`
+in that directory. It uses the existing Go cache configuration and may download
+missing dependencies or the toolchain required by `go.mod`.
+
+Copy the directory contents to the Ubuntu server, create the production `.env`
+there using `.env.example`, and run `./migrate` successfully before starting
+`./backend`. Use that directory as the working directory for both applications.
+The build script does not run either application or connect to the database.
 
 ## Verification
 
