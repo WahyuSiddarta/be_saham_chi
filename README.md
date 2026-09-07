@@ -95,8 +95,13 @@ your local `.env`. For existing V2 tokens, retain V2's JWT secret and issuer.
 Point `DATABASE_URL` at the current V2 schema or a new development database.
 The migration command prepares the required tables and ACL seeds using sqlx. It also adds the
 registration `role_id` column to databases created by the earlier Chi prototype.
-Historical V2 table/column deletion and data backfills are not replayed: an older
-pre-current-V2 database needs its existing migration procedure before use.
+The migration also owns schema setup for `stealth-scraping`, which shares this
+database. It creates `stock_fundamentals`, `stock_financials`, and
+`stock_financial_values` with their indexes and existing scraper schema updates.
+For legacy fundamentals, it copies section columns into `payload` before removing
+those old columns. Financial-history JSON backfill remains in the scraper job;
+other historical V2 cleanup is not replayed. An older pre-current-V2 database
+still needs its existing migration procedure before use.
 
 Stock fundamentals remain read-only in this backend; the scraper owns writes.
 Stock klines retain their database-first Yahoo cache behavior. Registration and
@@ -130,7 +135,7 @@ not introduce versioned migrations or rollback commands.
 
 `backend` only connects to the prepared database and serves the API; startup
 no longer changes schema or seeds data. Run `migrate` before the first start
-and whenever deploying schema or seed changes. For development, use
+of either the backend or `stealth-scraping`, and whenever deploying schema or seed changes. For development, use
 `go run ./cmd/migrate` and `go run ./cmd/backend` respectively. The old
 `go run ./cmd` entry point has been replaced.
 
