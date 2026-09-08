@@ -1,0 +1,93 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+	"time"
+
+	"github.com/WahyuSiddarta/be_saham_chi/internal/repository"
+)
+
+type stubFCFPerShareValuationRepository struct {
+	stock        repository.Stock
+	fundamentals repository.StockFundamentals
+	biRate       repository.MasterData
+	stockBeta    repository.StockBeta
+}
+
+func (r *stubFCFPerShareValuationRepository) GetStock(context.Context, string) (repository.Stock, error) {
+	return r.stock, nil
+}
+
+func (r *stubFCFPerShareValuationRepository) GetMasterData(context.Context, string) (repository.MasterData, error) {
+	return r.biRate, nil
+}
+
+func (r *stubFCFPerShareValuationRepository) GetFundamentals(context.Context, string) (repository.StockFundamentals, error) {
+	return r.fundamentals, nil
+}
+
+func (r *stubFCFPerShareValuationRepository) GetStockBeta(context.Context, string) (repository.StockBeta, error) {
+	return r.stockBeta, nil
+}
+
+func TestCalculateFCFPerShareUsesTTMMetricInsteadOfNegativeQuarter(t *testing.T) {
+	scrapedAt := time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)
+	payload, err := json.Marshal(map[string]any{
+		"perShare": map[string]any{
+			"free_cashflow_per_share_ttm": map[string]any{
+				"label": "Free Cashflow Per Share (TTM)",
+				"value": "538.71",
+			},
+			"free_cashflow_per_share_quarter": map[string]any{
+				"label": "Free Cashflow Per Share (Quarter)",
+				"value": "-10.00",
+			},
+			"current_eps_ttm": map[string]any{
+				"label": "Current EPS (TTM)",
+				"value": "500",
+			},
+		},
+		"managementEffectiveness": map[string]any{
+			"return_on_equity_ttm": map[string]any{
+				"label": "Return on Equity (TTM)",
+				"value": "20%",
+			},
+		},
+		"dividendHistory": []any{
+			map[string]any{"exDate": "01 Jan 26", "dividend": "100"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	valuationService := NewStockValuationService(&stubFCFPerShareValuationRepository{
+		stock:        repository.Stock{Ticker: "BBCA", Active: true},
+		fundamentals: repository.StockFundamentals{Ticker: "BBCA", Payload: payload, ScrapedAt: scrapedAt},
+		biRate:       repository.MasterData{Key: "bi_rate", Value: 6},
+		stockBeta:    repository.StockBeta{Ticker: "BBCA", Value: 1.2, Period: "5y", Interval: "1mo", Source: "yahoo_finance"},
+	})
+
+	valuation, err := valuationService.CalculateFCFPerShare(context.Background(), "BBCA", FCFPerShareValuationAssumptions{
+		ForecastYears:      5,
+		TerminalGrowthRate: 0.03,
+		EquityRiskPremium:  0.06,
+	})
+	if err != nil {
+		t.Fatalf("CalculateFCFPerShare returned error: %v", err)
+	}
+	if valuation.FCFPerShareTTM != 538.71 {
+		t.Fatalf("FCFPerShareTTM = %v, want 538.71", valuation.FCFPerShareTTM)
+	}
+	if valuation.RiskFreeRate != 0.06 {
+		t.Fatalf("RiskFreeRate = %v, want 0.06", valuation.RiskFreeRate)
+	}
+	if valuation.Beta != 1.2 {
+		t.Fatalf("Beta = %v, want 1.2", valuation.Beta)
+	}
+	if valuation.CostOfEquity != 0.132 {
+		t.Fatalf("CostOfEquity = %v, want 0.132", valuation.CostOfEquity)
+	}
+}

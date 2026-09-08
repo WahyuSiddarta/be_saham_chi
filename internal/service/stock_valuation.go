@@ -13,14 +13,13 @@ import (
 	"github.com/WahyuSiddarta/be_saham_chi/internal/repository"
 )
 
-const defaultFCFPerShareBeta = 0.8
-
 var ErrInvalidFCFPerShareAssumptions = errors.New("invalid fcf per share valuation assumptions")
 
 type FCFPerShareValuationRepository interface {
 	GetStock(context.Context, string) (repository.Stock, error)
 	GetMasterData(context.Context, string) (repository.MasterData, error)
 	GetFundamentals(context.Context, string) (repository.StockFundamentals, error)
+	GetStockBeta(context.Context, string) (repository.StockBeta, error)
 }
 
 type FCFPerShareValuationAssumptions struct {
@@ -28,7 +27,6 @@ type FCFPerShareValuationAssumptions struct {
 	ForecastYears      int
 	TerminalGrowthRate float64
 	EquityRiskPremium  float64
-	Beta               *float64
 }
 
 type FCFPerShareForecast struct {
@@ -88,6 +86,18 @@ func (s *StockValuationService) CalculateFCFPerShare(ctx context.Context, ticker
 	if err != nil {
 		return FCFPerShareValuation{}, fmt.Errorf("%w: bi_rate is unavailable", ErrInvalidFCFPerShareAssumptions)
 	}
+	riskFreeRate, err := percentagePointsToDecimal(biRate.Value, "bi_rate")
+	if err != nil {
+		return FCFPerShareValuation{}, err
+	}
+	stockBeta, err := s.repository.GetStockBeta(ctx, stock.Ticker)
+	if errors.Is(err, repository.ErrStockBetaNotFound) {
+		return FCFPerShareValuation{}, fmt.Errorf("%w: stock beta is unavailable", ErrInvalidFCFPerShareAssumptions)
+	}
+	if err != nil {
+		return FCFPerShareValuation{}, fmt.Errorf("stockValuationService.CalculateFCFPerShare -> GetStockBeta: %w", err)
+	}
+	beta := stockBeta.Value
 	years := in.ForecastYears
 	if years == 0 {
 		years = 5
@@ -101,14 +111,10 @@ func (s *StockValuationService) CalculateFCFPerShare(ctx context.Context, ticker
 		source = "fundamentals_roe_x_retention"
 		derivation = &FCFPerShareGrowthRateDerivation{metrics.ROE, metrics.DividendPerShareTTM, metrics.EPSTTM, metrics.DividendPerShareTTM / metrics.EPSTTM}
 	}
-	if err := validateFCFPerShare(in, *growth, years, biRate.Value); err != nil {
+	if err := validateFCFPerShare(in, *growth, years, riskFreeRate, beta); err != nil {
 		return FCFPerShareValuation{}, err
 	}
-	beta := defaultFCFPerShareBeta
-	if in.Beta != nil {
-		beta = *in.Beta
-	}
-	ke := biRate.Value + beta*in.EquityRiskPremium
+	ke := riskFreeRate + beta*in.EquityRiskPremium
 	forecast := make([]FCFPerShareForecast, 0, years)
 	fairValue := 0.0
 	for year := 1; year <= years; year++ {
@@ -120,7 +126,7 @@ func (s *StockValuationService) CalculateFCFPerShare(ctx context.Context, ticker
 	terminalValue := forecast[len(forecast)-1].FCFPerShare * (1 + in.TerminalGrowthRate) / (ke - in.TerminalGrowthRate)
 	presentTerminalValue := terminalValue / math.Pow(1+ke, float64(years))
 	fairValue += presentTerminalValue
-	return FCFPerShareValuation{Ticker: stock.Ticker, Currency: "IDR", FCFPerShareTTM: metrics.FCFPerShareTTM, GrowthRate: *growth, GrowthRateSource: source, GrowthRateDerivation: derivation, RiskFreeRate: biRate.Value, Beta: beta, CostOfEquity: ke, Forecast: forecast, TerminalValue: terminalValue, PresentTerminalValue: presentTerminalValue, FairValuePerShare: fairValue}, nil
+	return FCFPerShareValuation{Ticker: stock.Ticker, Currency: "IDR", FCFPerShareTTM: metrics.FCFPerShareTTM, GrowthRate: *growth, GrowthRateSource: source, GrowthRateDerivation: derivation, RiskFreeRate: riskFreeRate, Beta: beta, CostOfEquity: ke, Forecast: forecast, TerminalValue: terminalValue, PresentTerminalValue: presentTerminalValue, FairValuePerShare: fairValue}, nil
 }
 
 type fcfPerShareMetrics struct {
@@ -139,17 +145,32 @@ func readFCFPerShareMetrics(payload json.RawMessage, scrapedAt time.Time) (fcfPe
 	if !ok {
 		return fcfPerShareMetrics{}, fmt.Errorf("%w: per-share metrics are missing", ErrInvalidFCFPerShareAssumptions)
 	}
-	fcf, found := findMetric(perShare, func(l string) bool {
-		return strings.Contains(l, "free cash flow") && strings.Contains(l, "per share") && strings.Contains(l, "ttm")
-	})
-	if !found || fcf <= 0 {
+	fcfPerShareTTM, found := findMetricByKeys(perShare,
+		"free_cashflow_per_share_ttm",
+		"free_cash_flow_per_share_ttm",
+	)
+	if !found || fcfPerShareTTM <= 0 {
 		return fcfPerShareMetrics{}, fmt.Errorf("%w: positive free cash flow per share ttm is missing", ErrInvalidFCFPerShareAssumptions)
 	}
 	eps, found := findMetric(perShare, func(l string) bool { return strings.Contains(l, "current eps") && strings.Contains(l, "ttm") })
 	if !found || eps <= 0 {
 		return fcfPerShareMetrics{}, fmt.Errorf("%w: positive current eps ttm is missing", ErrInvalidFCFPerShareAssumptions)
 	}
-	roe, found := findMetric(data["profitability"], func(l string) bool { return strings.Contains(l, "return on equity") || strings.HasPrefix(l, "roe") })
+	roe, found := findMetricByKeys(data["managementEffectiveness"],
+		"return_on_equity_ttm",
+		"return_on_equity",
+		"roe_ttm",
+		"roe",
+	)
+	if !found {
+		// Older snapshots may have grouped ROE under profitability.
+		roe, found = findMetricByKeys(data["profitability"],
+			"return_on_equity_ttm",
+			"return_on_equity",
+			"roe_ttm",
+			"roe",
+		)
+	}
 	if !found || roe <= 0 {
 		return fcfPerShareMetrics{}, fmt.Errorf("%w: positive return on equity is missing", ErrInvalidFCFPerShareAssumptions)
 	}
@@ -164,18 +185,47 @@ func readFCFPerShareMetrics(payload json.RawMessage, scrapedAt time.Time) (fcfPe
 	if err != nil {
 		return fcfPerShareMetrics{}, err
 	}
-	return fcfPerShareMetrics{fcf, roe, eps, dps}, nil
+	return fcfPerShareMetrics{fcfPerShareTTM, roe, eps, dps}, nil
 }
-func validateFCFPerShare(in FCFPerShareValuationAssumptions, growth float64, years int, bi float64) error {
-	if years < 1 || years > 10 || in.TerminalGrowthRate < 0 || in.EquityRiskPremium < 0 || growth <= -1 || bi <= 0 || bi >= 1 {
-		return fmt.Errorf("%w: years must be 1-10 and rates must be decimal values", ErrInvalidFCFPerShareAssumptions)
+func findMetricByKeys(value any, keys ...string) (float64, bool) {
+	metrics, ok := value.(map[string]any)
+	if !ok {
+		return 0, false
 	}
-	beta := defaultFCFPerShareBeta
-	if in.Beta != nil {
-		beta = *in.Beta
+	for _, key := range keys {
+		metric, ok := metrics[key].(map[string]any)
+		if !ok {
+			continue
+		}
+		raw, ok := metric["value"].(string)
+		if !ok {
+			continue
+		}
+		parsed, err := parseNumber(raw)
+		if err == nil {
+			return parsed, true
+		}
 	}
-	if beta <= 0 || math.IsNaN(beta) || math.IsInf(beta, 0) {
-		return fmt.Errorf("%w: beta must be positive", ErrInvalidFCFPerShareAssumptions)
+	return 0, false
+}
+func validateFCFPerShare(in FCFPerShareValuationAssumptions, growth float64, years int, bi, beta float64) error {
+	if years < 1 || years > 10 {
+		return fmt.Errorf("%w: forecast_years must be between 1 and 10", ErrInvalidFCFPerShareAssumptions)
+	}
+	if in.TerminalGrowthRate < 0 {
+		return fmt.Errorf("%w: terminal_growth_rate must not be negative", ErrInvalidFCFPerShareAssumptions)
+	}
+	if in.EquityRiskPremium < 0 {
+		return fmt.Errorf("%w: equity_risk_premium must not be negative", ErrInvalidFCFPerShareAssumptions)
+	}
+	if growth <= -1 {
+		return fmt.Errorf("%w: growth_rate must be greater than -1", ErrInvalidFCFPerShareAssumptions)
+	}
+	if bi <= 0 || bi >= 1 {
+		return fmt.Errorf("%w: normalized bi_rate must be between 0 and 1", ErrInvalidFCFPerShareAssumptions)
+	}
+	if math.IsNaN(beta) || math.IsInf(beta, 0) {
+		return fmt.Errorf("%w: stored stock beta must be finite", ErrInvalidFCFPerShareAssumptions)
 	}
 	if math.IsNaN(growth) || math.IsInf(growth, 0) || math.IsNaN(in.TerminalGrowthRate) || math.IsInf(in.TerminalGrowthRate, 0) || math.IsNaN(in.EquityRiskPremium) || math.IsInf(in.EquityRiskPremium, 0) {
 		return fmt.Errorf("%w: values must be finite", ErrInvalidFCFPerShareAssumptions)
@@ -184,6 +234,12 @@ func validateFCFPerShare(in FCFPerShareValuationAssumptions, growth float64, yea
 		return fmt.Errorf("%w: terminal_growth_rate must be less than cost_of_equity", ErrInvalidFCFPerShareAssumptions)
 	}
 	return nil
+}
+func percentagePointsToDecimal(value float64, field string) (float64, error) {
+	if value <= 0 || value >= 100 || math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, fmt.Errorf("%w: %s must be between 0 and 100 percent", ErrInvalidFCFPerShareAssumptions, field)
+	}
+	return value / 100, nil
 }
 func findMetric(value any, matches func(string) bool) (float64, bool) {
 	switch item := value.(type) {

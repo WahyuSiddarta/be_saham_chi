@@ -254,7 +254,7 @@ paths:
     post:
       tags: [Stocks]
       summary: Calculate a free-cash-flow-per-share valuation
-      description: Requires `market.stock.read`. Reads Free Cash Flow Per Share (TTM), ROE, Current EPS (TTM), and dividend history from stored fundamentals. Uses `master_data.bi_rate` and beta 0.8 by default. This endpoint does not save a valuation.
+      description: Requires `market.stock.read`. Reads Free Cash Flow Per Share (TTM), ROE, Current EPS (TTM), and dividend history from stored fundamentals, BI rate from `master_data`, and the ticker's Yahoo Finance `5y`/`1mo` beta from `stock_betas`. This endpoint does not save a valuation.
       security: [{bearerAuth: []}]
       parameters:
         - $ref: "#/components/parameters/StockTickerPath"
@@ -2712,7 +2712,6 @@ components:
         forecast_years: {type: integer, minimum: 1, maximum: 10, default: 5}
         terminal_growth_rate: {type: number, format: double, example: 0.03, description: Decimal rate; must be below cost of equity.}
         equity_risk_premium: {type: number, format: double, example: 0.06, description: Decimal rate.}
-        beta: {type: number, format: double, example: 0.8, description: Optional; defaults to 0.8.}
     FCFPerShareValuationResponse:
       type: object
       required: [status, data]
@@ -2735,7 +2734,7 @@ components:
                 dividend_per_share_ttm: {type: number, format: double}
                 eps_ttm: {type: number, format: double}
                 dividend_payout_ratio: {type: number, format: double}
-            risk_free_rate: {type: number, format: double, description: Current decimal master_data.bi_rate.}
+            risk_free_rate: {type: number, format: double, description: Current master_data.bi_rate converted from percentage points to a decimal rate.}
             beta: {type: number, format: double}
             cost_of_equity: {type: number, format: double}
             forecast:

@@ -15,7 +15,6 @@ type FCFPerShareValuationRequest struct {
 	ForecastYears      int      `json:"forecast_years"`
 	TerminalGrowthRate float64  `json:"terminal_growth_rate"`
 	EquityRiskPremium  float64  `json:"equity_risk_premium"`
-	Beta               *float64 `json:"beta"`
 }
 type FCFPerShareValuationResponse struct {
 	Ticker               string                                   `json:"ticker"`
@@ -38,7 +37,7 @@ func (h Handler) CalculateStockFCFPerShare(w http.ResponseWriter, req *http.Requ
 	if err := binding.BindJSON(req.Body, &body); err != nil {
 		return response.Fail(w, http.StatusBadRequest, "invalid request body")
 	}
-	valuation, err := h.stockValuationService.CalculateFCFPerShare(req.Context(), chi.URLParam(req, "ticker"), service.FCFPerShareValuationAssumptions{GrowthRate: body.GrowthRate, ForecastYears: body.ForecastYears, TerminalGrowthRate: body.TerminalGrowthRate, EquityRiskPremium: body.EquityRiskPremium, Beta: body.Beta})
+	valuation, err := h.stockValuationService.CalculateFCFPerShare(req.Context(), chi.URLParam(req, "ticker"), service.FCFPerShareValuationAssumptions{GrowthRate: body.GrowthRate, ForecastYears: body.ForecastYears, TerminalGrowthRate: body.TerminalGrowthRate, EquityRiskPremium: body.EquityRiskPremium})
 	if err != nil {
 		if errors.Is(err, service.ErrStockNotFound) || errors.Is(err, service.ErrInactiveStock) {
 			return response.Fail(w, http.StatusNotFound, "stock not found")

@@ -9,6 +9,8 @@ cost of equity = BI rate + beta x equity risk premium
 terminal value = next year FCF per share / (cost of equity - terminal growth)
 ```
 
+`master_data.bi_rate` is maintained as percentage points in the admin UI and converted to a decimal for this calculation (`5.75` becomes `0.0575`). Beta is loaded from the ticker's Yahoo Finance `5y`/`1mo` record in `stock_betas`. Request rate assumptions remain decimal values.
+
 If `growth_rate` is omitted, the API derives it as `ROE x (1 - DPS TTM / EPS TTM)`.
 
 ## Good fit
@@ -27,4 +29,4 @@ Use it as a first-pass valuation for established non-financial companies with po
 
 ## Data contract to verify
 
-The service matches the stored labels `Free Cash Flow Per Share (TTM)`, `Current EPS (TTM)`, and ROE. Confirm scraper definitions, currency, split adjustments, and treatment of special dividends before using this result in a production recommendation.
+The service reads `free_cashflow_per_share_ttm` from `perShare` and `return_on_equity_ttm` from `managementEffectiveness`, with compatibility fallbacks for older snapshots. Confirm scraper definitions, currency, split adjustments, and treatment of special dividends before using this result in a production recommendation.
