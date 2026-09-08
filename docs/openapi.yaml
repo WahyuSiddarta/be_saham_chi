@@ -250,6 +250,30 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+  /api/v1/private/stocks/{ticker}/valuation/fcf-per-share:
+    post:
+      tags: [Stocks]
+      summary: Calculate a free-cash-flow-per-share valuation
+      description: Requires `market.stock.read`. Reads Free Cash Flow Per Share (TTM), ROE, Current EPS (TTM), and dividend history from stored fundamentals. Uses `master_data.bi_rate` and beta 0.8 by default. This endpoint does not save a valuation.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StockTickerPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/FCFPerShareValuationRequest"}
+      responses:
+        "200":
+          description: Per-share free-cash-flow calculation.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FCFPerShareValuationResponse"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /api/v1/private/stocks/fundamental/{ticker}/income-statement:
     get:
       tags: [Stocks]
@@ -2680,6 +2704,51 @@ components:
         payload: {$ref: "#/components/schemas/StockbitFundamentalsPayload"}
         scraped_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
+    FCFPerShareValuationRequest:
+      type: object
+      required: [terminal_growth_rate, equity_risk_premium]
+      properties:
+        growth_rate: {type: number, format: double, example: 0.08, description: Optional annual decimal rate. When omitted, derives ROE x (1 - DPS TTM/EPS TTM).}
+        forecast_years: {type: integer, minimum: 1, maximum: 10, default: 5}
+        terminal_growth_rate: {type: number, format: double, example: 0.03, description: Decimal rate; must be below cost of equity.}
+        equity_risk_premium: {type: number, format: double, example: 0.06, description: Decimal rate.}
+        beta: {type: number, format: double, example: 0.8, description: Optional; defaults to 0.8.}
+    FCFPerShareValuationResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status: {$ref: "#/components/schemas/StatusOK"}
+        data:
+          type: object
+          required: [ticker, currency, fcf_per_share_ttm, growth_rate, growth_rate_source, risk_free_rate, beta, cost_of_equity, forecast, terminal_value, present_terminal_value, fair_value_per_share]
+          properties:
+            ticker: {type: string, example: TLKM}
+            currency: {type: string, example: IDR}
+            fcf_per_share_ttm: {type: number, format: double}
+            growth_rate: {type: number, format: double}
+            growth_rate_source: {type: string, enum: [request, fundamentals_roe_x_retention]}
+            growth_rate_derivation:
+              type: object
+              nullable: true
+              properties:
+                roe: {type: number, format: double}
+                dividend_per_share_ttm: {type: number, format: double}
+                eps_ttm: {type: number, format: double}
+                dividend_payout_ratio: {type: number, format: double}
+            risk_free_rate: {type: number, format: double, description: Current decimal master_data.bi_rate.}
+            beta: {type: number, format: double}
+            cost_of_equity: {type: number, format: double}
+            forecast:
+              type: array
+              items:
+                type: object
+                properties:
+                  year: {type: integer}
+                  fcf_per_share: {type: number, format: double}
+                  present_value: {type: number, format: double}
+            terminal_value: {type: number, format: double}
+            present_terminal_value: {type: number, format: double}
+            fair_value_per_share: {type: number, format: double}
     StockFinancialStatementResponse:
       type: object
       required: [status, data]

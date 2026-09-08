@@ -40,6 +40,7 @@ var v2Routes = []struct{ method, path string }{
 	{"GET", "/api/v1/private/stocks/{ticker}/quote"},
 	{"GET", "/api/v1/private/stocks/{ticker}/kline"},
 	{"GET", "/api/v1/private/stocks/{ticker}/fundamentals"},
+	{"POST", "/api/v1/private/stocks/{ticker}/valuation/fcf-per-share"},
 	{"GET", "/api/v1/private/admin/stocks"},
 	{"POST", "/api/v1/private/admin/stocks"},
 	{"GET", "/api/v1/private/admin/stocks/{ticker}"},

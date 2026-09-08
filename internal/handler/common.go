@@ -17,30 +17,32 @@ import (
 )
 
 type Handler struct {
-	status            string
-	log               *zerolog.Logger
-	authService       *service.AuthService
-	commodityService  *service.CommodityService
-	stockService      *service.StockService
-	portfolioService  *service.PortfolioService
-	cashService       *service.CashService
-	bondService       *service.BondService
-	goldService       *service.GoldService
-	masterDataService *service.MasterDataService
+	status                string
+	log                   *zerolog.Logger
+	authService           *service.AuthService
+	commodityService      *service.CommodityService
+	stockService          *service.StockService
+	stockValuationService *service.StockValuationService
+	portfolioService      *service.PortfolioService
+	cashService           *service.CashService
+	bondService           *service.BondService
+	goldService           *service.GoldService
+	masterDataService     *service.MasterDataService
 }
 
 func New(status string, log *zerolog.Logger, authService *service.AuthService, domains Domains) Handler {
 	return Handler{
-		status:            status,
-		log:               log,
-		authService:       authService,
-		commodityService:  domains.Commodity,
-		stockService:      domains.Stock,
-		portfolioService:  domains.Portfolio,
-		cashService:       domains.Cash,
-		bondService:       domains.Bond,
-		goldService:       domains.Gold,
-		masterDataService: domains.MasterData,
+		status:                status,
+		log:                   log,
+		authService:           authService,
+		commodityService:      domains.Commodity,
+		stockService:          domains.Stock,
+		stockValuationService: domains.StockValuation,
+		portfolioService:      domains.Portfolio,
+		cashService:           domains.Cash,
+		bondService:           domains.Bond,
+		goldService:           domains.Gold,
+		masterDataService:     domains.MasterData,
 	}
 }
 
@@ -51,13 +53,14 @@ func (h Handler) fail(w http.ResponseWriter, status int, message string) {
 }
 
 type Domains struct {
-	Commodity  *service.CommodityService
-	Stock      *service.StockService
-	Portfolio  *service.PortfolioService
-	Cash       *service.CashService
-	Bond       *service.BondService
-	Gold       *service.GoldService
-	MasterData *service.MasterDataService
+	Commodity      *service.CommodityService
+	Stock          *service.StockService
+	StockValuation *service.StockValuationService
+	Portfolio      *service.PortfolioService
+	Cash           *service.CashService
+	Bond           *service.BondService
+	Gold           *service.GoldService
+	MasterData     *service.MasterDataService
 }
 
 // Handle logs response errors and writes a fallback only before a response starts.

@@ -51,13 +51,14 @@ func (app Application) routes() http.Handler {
 	}, yahoo.NewCommodityProvider(app.config.goldSymbol), repositories, repositories)
 
 	handlers := handler.New(app.config.status, Log, authService, handler.Domains{
-		Commodity:  commodityService,
-		Stock:      service.NewStockService(yahoo.NewStockProvider(), repositories),
-		Portfolio:  service.NewPortfolioService(repositories),
-		Cash:       service.NewCashService(repositories),
-		Bond:       service.NewBondService(repositories),
-		Gold:       service.NewGoldService(repositories),
-		MasterData: service.NewMasterDataService(repositories),
+		Commodity:      commodityService,
+		Stock:          service.NewStockService(yahoo.NewStockProvider(), repositories),
+		StockValuation: service.NewStockValuationService(repositories),
+		Portfolio:      service.NewPortfolioService(repositories),
+		Cash:           service.NewCashService(repositories),
+		Bond:           service.NewBondService(repositories),
+		Gold:           service.NewGoldService(repositories),
+		MasterData:     service.NewMasterDataService(repositories),
 	})
 
 	// public routes
@@ -147,6 +148,7 @@ func (app Application) routes() http.Handler {
 		{http.MethodGet, "/{ticker}/quote", "", handlers.GetStockQuote},
 		{http.MethodGet, "/{ticker}/kline", "", handlers.GetStockKlines},
 		{http.MethodGet, "/{ticker}/fundamentals", "", handlers.GetFundamentals},
+		{http.MethodPost, "/{ticker}/valuation/fcf-per-share", "", handlers.CalculateStockFCFPerShare},
 	}, middleware.RequireRule("market.stock.read"))
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) { _ = response.Fail(w, http.StatusNotFound, "Not Found") })
