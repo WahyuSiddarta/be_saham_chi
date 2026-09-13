@@ -149,6 +149,7 @@ func (app Application) routes() http.Handler {
 		{http.MethodGet, "/{ticker}/kline", "", handlers.GetStockKlines},
 		{http.MethodGet, "/{ticker}/fundamentals", "", handlers.GetFundamentals},
 		{http.MethodPost, "/{ticker}/valuation/fcf-per-share", "", handlers.CalculateStockFCFPerShare},
+		{http.MethodPost, "/{ticker}/valuation/residual-income", "", handlers.CalculateStockResidualIncome},
 	}, middleware.RequireRule("market.stock.read"))
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) { _ = response.Fail(w, http.StatusNotFound, "Not Found") })

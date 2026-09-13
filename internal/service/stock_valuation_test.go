@@ -10,26 +10,30 @@ import (
 )
 
 type stubFCFPerShareValuationRepository struct {
-	stock        repository.Stock
-	fundamentals repository.StockFundamentals
-	biRate       repository.MasterData
-	stockBeta    repository.StockBeta
+	stock           repository.Stock
+	fundamentals    repository.StockFundamentals
+	biRate          repository.MasterData
+	stockBeta       repository.StockBeta
+	stockErr        error
+	fundamentalsErr error
+	masterDataErr   error
+	stockBetaErr    error
 }
 
 func (r *stubFCFPerShareValuationRepository) GetStock(context.Context, string) (repository.Stock, error) {
-	return r.stock, nil
+	return r.stock, r.stockErr
 }
 
 func (r *stubFCFPerShareValuationRepository) GetMasterData(context.Context, string) (repository.MasterData, error) {
-	return r.biRate, nil
+	return r.biRate, r.masterDataErr
 }
 
 func (r *stubFCFPerShareValuationRepository) GetFundamentals(context.Context, string) (repository.StockFundamentals, error) {
-	return r.fundamentals, nil
+	return r.fundamentals, r.fundamentalsErr
 }
 
 func (r *stubFCFPerShareValuationRepository) GetStockBeta(context.Context, string) (repository.StockBeta, error) {
-	return r.stockBeta, nil
+	return r.stockBeta, r.stockBetaErr
 }
 
 func TestCalculateFCFPerShareUsesTTMMetricInsteadOfNegativeQuarter(t *testing.T) {

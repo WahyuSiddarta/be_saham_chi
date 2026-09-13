@@ -15,7 +15,9 @@ import (
 
 var ErrInvalidFCFPerShareAssumptions = errors.New("invalid fcf per share valuation assumptions")
 
-type FCFPerShareValuationRepository interface {
+var errMalformedDividendHistory = errors.New("malformed dividend history")
+
+type StockValuationRepository interface {
 	GetStock(context.Context, string) (repository.Stock, error)
 	GetMasterData(context.Context, string) (repository.MasterData, error)
 	GetFundamentals(context.Context, string) (repository.StockFundamentals, error)
@@ -56,10 +58,10 @@ type FCFPerShareValuation struct {
 	FairValuePerShare    float64
 }
 type StockValuationService struct {
-	repository FCFPerShareValuationRepository
+	repository StockValuationRepository
 }
 
-func NewStockValuationService(repo FCFPerShareValuationRepository) *StockValuationService {
+func NewStockValuationService(repo StockValuationRepository) *StockValuationService {
 	return &StockValuationService{repository: repo}
 }
 
@@ -183,7 +185,7 @@ func readFCFPerShareMetrics(payload json.RawMessage, scrapedAt time.Time) (fcfPe
 	}
 	dps, err := dividendPerShareTTM(history, scrapedAt)
 	if err != nil {
-		return fcfPerShareMetrics{}, err
+		return fcfPerShareMetrics{}, fmt.Errorf("%w: %v", ErrInvalidFCFPerShareAssumptions, err)
 	}
 	return fcfPerShareMetrics{fcfPerShareTTM, roe, eps, dps}, nil
 }
@@ -269,33 +271,31 @@ func findMetric(value any, matches func(string) bool) (float64, bool) {
 func dividendPerShareTTM(history []any, asOf time.Time) (float64, error) {
 	cutoff := asOf.AddDate(-1, 0, 0)
 	total := 0.0
-	count := 0
 	for _, raw := range history {
 		item, ok := raw.(map[string]any)
 		if !ok {
-			continue
+			return 0, errMalformedDividendHistory
 		}
 		dateRaw, ok := item["exDate"].(string)
 		if !ok {
-			continue
+			return 0, errMalformedDividendHistory
 		}
 		date, err := time.Parse("02 Jan 06", dateRaw)
-		if err != nil || date.Before(cutoff) || date.After(asOf) {
+		if err != nil {
+			return 0, errMalformedDividendHistory
+		}
+		if date.Before(cutoff) || date.After(asOf) {
 			continue
 		}
 		dividend, ok := item["dividend"].(string)
 		if !ok {
-			continue
+			return 0, errMalformedDividendHistory
 		}
 		amount, err := parseNumber(dividend)
-		if err != nil {
-			continue
+		if err != nil || amount < 0 {
+			return 0, errMalformedDividendHistory
 		}
 		total += amount
-		count++
-	}
-	if count == 0 {
-		return 0, fmt.Errorf("%w: no parseable TTM dividends", ErrInvalidFCFPerShareAssumptions)
 	}
 	return total, nil
 }

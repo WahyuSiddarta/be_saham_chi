@@ -274,6 +274,30 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+  /api/v1/private/stocks/{ticker}/valuation/residual-income:
+    post:
+      tags: [Stocks]
+      summary: Calculate a basic snapshot residual-income valuation
+      description: Requires `market.stock.read`. Uses the latest stored book value per share, EPS TTM, ROE TTM, trailing-twelve-month dividends, BI rate, and stored beta. It linearly fades current ROE and payout toward the terminal assumptions. This is a snapshot model, not a historical multi-year clean-surplus model, and it does not save the valuation.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StockTickerPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ResidualIncomeValuationRequest"}
+      responses:
+        "200":
+          description: Basic snapshot residual-income calculation.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ResidualIncomeValuationResponse"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /api/v1/private/stocks/fundamental/{ticker}/income-statement:
     get:
       tags: [Stocks]
@@ -2748,6 +2772,57 @@ components:
             terminal_value: {type: number, format: double}
             present_terminal_value: {type: number, format: double}
             fair_value_per_share: {type: number, format: double}
+    ResidualIncomeValuationRequest:
+      type: object
+      required: [terminal_roe, terminal_growth_rate, equity_risk_premium]
+      properties:
+        forecast_years: {type: integer, minimum: 1, maximum: 10, default: 5}
+        terminal_roe: {type: number, format: double, exclusiveMinimum: true, minimum: 0, maximum: 1, example: 0.12, description: Long-run ROE as a decimal rate.}
+        terminal_growth_rate: {type: number, format: double, minimum: 0, example: 0.03, description: Decimal rate; must not exceed terminal ROE and must remain below cost of equity.}
+        equity_risk_premium: {type: number, format: double, minimum: 0, example: 0.06, description: Decimal rate.}
+    ResidualIncomeValuationResponse:
+      type: object
+      required: [status, data]
+      properties:
+        status: {$ref: "#/components/schemas/StatusOK"}
+        data:
+          type: object
+          required: [ticker, currency, book_value_per_share, current_roe, current_dividend_payout_ratio, risk_free_rate, beta, cost_of_equity, forecast_years, terminal_roe, terminal_growth_rate, terminal_retention_ratio, forecast, present_value_of_forecast_residual_income, terminal_residual_income, terminal_value, present_terminal_value, fair_value_per_share]
+          properties:
+            ticker: {type: string, example: BBCA}
+            currency: {type: string, example: IDR}
+            book_value_per_share: {type: number, format: double}
+            current_roe: {type: number, format: double, description: Stored ROE normalized to a decimal rate from its percent-formatted source value.}
+            current_dividend_payout_ratio: {type: number, format: double, description: TTM dividends per share divided by EPS TTM. May exceed 1.}
+            risk_free_rate: {type: number, format: double, description: Current master_data.bi_rate converted from percentage points to a decimal rate.}
+            beta: {type: number, format: double, description: Exact stored beta, including negative values.}
+            cost_of_equity: {type: number, format: double}
+            forecast_years: {type: integer}
+            terminal_roe: {type: number, format: double}
+            terminal_growth_rate: {type: number, format: double}
+            terminal_retention_ratio: {type: number, format: double}
+            forecast:
+              type: array
+              items:
+                $ref: "#/components/schemas/ResidualIncomeForecast"
+            present_value_of_forecast_residual_income: {type: number, format: double}
+            terminal_residual_income: {type: number, format: double}
+            terminal_value: {type: number, format: double}
+            present_terminal_value: {type: number, format: double}
+            fair_value_per_share: {type: number, format: double}
+    ResidualIncomeForecast:
+      type: object
+      required: [year, opening_book_value_per_share, roe, earnings_per_share, dividend_payout_ratio, dividend_per_share, closing_book_value_per_share, residual_income_per_share, present_value]
+      properties:
+        year: {type: integer}
+        opening_book_value_per_share: {type: number, format: double}
+        roe: {type: number, format: double}
+        earnings_per_share: {type: number, format: double}
+        dividend_payout_ratio: {type: number, format: double}
+        dividend_per_share: {type: number, format: double}
+        closing_book_value_per_share: {type: number, format: double}
+        residual_income_per_share: {type: number, format: double}
+        present_value: {type: number, format: double}
     StockFinancialStatementResponse:
       type: object
       required: [status, data]
