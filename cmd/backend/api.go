@@ -51,14 +51,16 @@ func (app Application) routes() http.Handler {
 	}, yahoo.NewCommodityProvider(app.config.goldSymbol), repositories, repositories)
 
 	handlers := handler.New(app.config.status, Log, authService, handler.Domains{
-		Commodity:      commodityService,
-		Stock:          service.NewStockService(yahoo.NewStockProvider(), repositories),
-		StockValuation: service.NewStockValuationService(repositories),
-		Portfolio:      service.NewPortfolioService(repositories),
-		Cash:           service.NewCashService(repositories),
-		Bond:           service.NewBondService(repositories),
-		Gold:           service.NewGoldService(repositories),
-		MasterData:     service.NewMasterDataService(repositories),
+		Commodity:               commodityService,
+		Stock:                   service.NewStockService(yahoo.NewStockProvider(), repositories),
+		FCFPerShareValuation:    service.NewFCFPerShareValuationService(repositories),
+		ResidualIncomeValuation: service.NewResidualIncomeValuationService(repositories),
+		Portfolio:               service.NewPortfolioService(repositories),
+		Cash:                    service.NewCashService(repositories),
+		Bond:                    service.NewBondService(repositories),
+		Gold:                    service.NewGoldService(repositories),
+		PortfolioStock:          service.NewPortfolioStockService(repositories, yahoo.NewStockProvider()),
+		MasterData:              service.NewMasterDataService(repositories),
 	})
 
 	// public routes
@@ -120,6 +122,14 @@ func (app Application) routes() http.Handler {
 		{http.MethodGet, "/transactions/{transaction_id}", "read", handlers.GetGoldTransaction},
 		{http.MethodPut, "/transactions/{transaction_id}", "update", handlers.UpdateGoldTransaction},
 		{http.MethodDelete, "/transactions/{transaction_id}", "delete", handlers.DeleteGoldTransaction},
+	})
+
+	registerRoutes(privateRoute, handlers, "/portfolio/{portfolio_id}/stocks", "portfolio.stock", []apiRoute{
+		{http.MethodGet, "/", "read", handlers.ListPortfolioStocks},
+		{http.MethodGet, "/transactions", "read", handlers.ListStockTransactions},
+		{http.MethodPost, "/transactions", "create", handlers.SaveStockTransaction},
+		{http.MethodPut, "/transactions/{transaction_id}", "update", handlers.SaveStockTransaction},
+		{http.MethodDelete, "/transactions/{transaction_id}", "delete", handlers.DeleteStockTransaction},
 	})
 
 	registerRoutes(privateRoute, handlers, "/admin/master-data", "master_data", []apiRoute{

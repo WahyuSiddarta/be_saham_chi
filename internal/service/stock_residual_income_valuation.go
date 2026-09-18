@@ -14,6 +14,13 @@ import (
 
 var ErrInvalidResidualIncomeAssumptions = errors.New("invalid residual income valuation assumptions")
 
+type ResidualIncomeValuationRepository interface {
+	GetStock(context.Context, string) (repository.Stock, error)
+	GetMasterData(context.Context, string) (repository.MasterData, error)
+	GetFundamentals(context.Context, string) (repository.StockFundamentals, error)
+	GetStockBeta(context.Context, string) (repository.StockBeta, error)
+}
+
 type ResidualIncomeValuationAssumptions struct {
 	ForecastYears      int
 	TerminalROE        float64
@@ -54,13 +61,21 @@ type ResidualIncomeValuation struct {
 	FairValuePerShare                    float64
 }
 
-func (s *StockValuationService) CalculateResidualIncome(ctx context.Context, ticker string, in ResidualIncomeValuationAssumptions) (ResidualIncomeValuation, error) {
+type ResidualIncomeValuationService struct {
+	repository ResidualIncomeValuationRepository
+}
+
+func NewResidualIncomeValuationService(repo ResidualIncomeValuationRepository) *ResidualIncomeValuationService {
+	return &ResidualIncomeValuationService{repository: repo}
+}
+
+func (s *ResidualIncomeValuationService) Calculate(ctx context.Context, ticker string, in ResidualIncomeValuationAssumptions) (ResidualIncomeValuation, error) {
 	stock, err := s.repository.GetStock(ctx, strings.ToUpper(strings.TrimSpace(ticker)))
 	if errors.Is(err, repository.ErrStockNotFound) {
 		return ResidualIncomeValuation{}, ErrStockNotFound
 	}
 	if err != nil {
-		return ResidualIncomeValuation{}, fmt.Errorf("stockValuationService.CalculateResidualIncome -> GetStock: %w", err)
+		return ResidualIncomeValuation{}, fmt.Errorf("residualIncomeValuationService.Calculate -> GetStock: %w", err)
 	}
 	if !stock.Active {
 		return ResidualIncomeValuation{}, ErrInactiveStock
@@ -71,21 +86,21 @@ func (s *StockValuationService) CalculateResidualIncome(ctx context.Context, tic
 		return ResidualIncomeValuation{}, fmt.Errorf("%w: stored fundamentals are unavailable", ErrInvalidResidualIncomeAssumptions)
 	}
 	if err != nil {
-		return ResidualIncomeValuation{}, fmt.Errorf("stockValuationService.CalculateResidualIncome -> GetFundamentals: %w", err)
+		return ResidualIncomeValuation{}, fmt.Errorf("residualIncomeValuationService.Calculate -> GetFundamentals: %w", err)
 	}
 	metrics, err := readResidualIncomeMetrics(fundamentals.Payload, fundamentals.ScrapedAt)
 	if err != nil {
 		return ResidualIncomeValuation{}, err
 	}
 
-	biRate, err := s.repository.GetMasterData(ctx, "bi_rate")
+	bondYield, err := s.repository.GetMasterData(ctx, MasterDataKeyIndonesia10YearBondYield)
 	if errors.Is(err, repository.ErrMasterDataNotFound) {
-		return ResidualIncomeValuation{}, fmt.Errorf("%w: bi_rate is unavailable", ErrInvalidResidualIncomeAssumptions)
+		return ResidualIncomeValuation{}, fmt.Errorf("%w: %s is unavailable", ErrInvalidResidualIncomeAssumptions, MasterDataKeyIndonesia10YearBondYield)
 	}
 	if err != nil {
-		return ResidualIncomeValuation{}, fmt.Errorf("stockValuationService.CalculateResidualIncome -> GetMasterData: %w", err)
+		return ResidualIncomeValuation{}, fmt.Errorf("residualIncomeValuationService.Calculate -> GetMasterData: %w", err)
 	}
-	riskFreeRate, err := residualIncomePercentagePointsToDecimal(biRate.Value, "bi_rate")
+	riskFreeRate, err := residualIncomePercentagePointsToDecimal(bondYield.Value, MasterDataKeyIndonesia10YearBondYield)
 	if err != nil {
 		return ResidualIncomeValuation{}, err
 	}
@@ -94,7 +109,7 @@ func (s *StockValuationService) CalculateResidualIncome(ctx context.Context, tic
 		return ResidualIncomeValuation{}, fmt.Errorf("%w: stock beta is unavailable", ErrInvalidResidualIncomeAssumptions)
 	}
 	if err != nil {
-		return ResidualIncomeValuation{}, fmt.Errorf("stockValuationService.CalculateResidualIncome -> GetStockBeta: %w", err)
+		return ResidualIncomeValuation{}, fmt.Errorf("residualIncomeValuationService.Calculate -> GetStockBeta: %w", err)
 	}
 
 	years := in.ForecastYears

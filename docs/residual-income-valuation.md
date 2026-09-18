@@ -21,7 +21,7 @@ The service reads these stored values:
 - ROE TTM from `managementEffectiveness`, with `profitability` as a compatibility
   fallback;
 - dividend events in the trailing twelve months from `dividendHistory`;
-- `master_data.bi_rate`, stored as percentage points; and
+- `master_data.indonesia_10_year_bond_yield`, stored as percentage points and used as the IDR risk-free rate; and
 - the ticker's exact Yahoo Finance `5y`/`1mo` beta from `stock_betas`, including
   a negative beta.
 
@@ -38,7 +38,7 @@ The request supplies decimal `terminal_roe`, `terminal_growth_rate`, and
 For each explicit forecast year:
 
 ```text
-cost of equity = BI rate + beta x equity risk premium
+cost of equity = Indonesia 10-year government bond yield + beta x equity risk premium
 earnings per share = forecast ROE x opening book value per share
 dividend per share = forecast payout x earnings per share
 closing book value = opening book value + earnings - dividends

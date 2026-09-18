@@ -12,6 +12,35 @@ import (
 	"github.com/WahyuSiddarta/be_saham_chi/internal/repository"
 )
 
+type stubResidualIncomeValuationRepository struct {
+	stock           repository.Stock
+	fundamentals    repository.StockFundamentals
+	bondYield       repository.MasterData
+	masterDataKey   string
+	stockBeta       repository.StockBeta
+	stockErr        error
+	fundamentalsErr error
+	masterDataErr   error
+	stockBetaErr    error
+}
+
+func (r *stubResidualIncomeValuationRepository) GetStock(context.Context, string) (repository.Stock, error) {
+	return r.stock, r.stockErr
+}
+
+func (r *stubResidualIncomeValuationRepository) GetMasterData(_ context.Context, key string) (repository.MasterData, error) {
+	r.masterDataKey = key
+	return r.bondYield, r.masterDataErr
+}
+
+func (r *stubResidualIncomeValuationRepository) GetFundamentals(context.Context, string) (repository.StockFundamentals, error) {
+	return r.fundamentals, r.fundamentalsErr
+}
+
+func (r *stubResidualIncomeValuationRepository) GetStockBeta(context.Context, string) (repository.StockBeta, error) {
+	return r.stockBeta, r.stockBetaErr
+}
+
 func TestCalculateResidualIncomeRollsBookValueAndPreservesStoredBeta(t *testing.T) {
 	scrapedAt := time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)
 	payload, err := json.Marshal(map[string]any{
@@ -30,24 +59,28 @@ func TestCalculateResidualIncomeRollsBookValueAndPreservesStoredBeta(t *testing.
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	valuationService := NewStockValuationService(&stubFCFPerShareValuationRepository{
+	repo := &stubResidualIncomeValuationRepository{
 		stock:        repository.Stock{Ticker: "BBCA", Active: true},
 		fundamentals: repository.StockFundamentals{Ticker: "BBCA", Payload: payload, ScrapedAt: scrapedAt},
-		biRate:       repository.MasterData{Key: "bi_rate", Value: 5.75},
+		bondYield:    repository.MasterData{Key: MasterDataKeyIndonesia10YearBondYield, Value: 5.75},
 		stockBeta:    repository.StockBeta{Ticker: "BBCA", Value: -0.04, Period: "5y", Interval: "1mo", Source: "yahoo_finance"},
-	})
+	}
+	valuationService := NewResidualIncomeValuationService(repo)
 
-	valuation, err := valuationService.CalculateResidualIncome(context.Background(), "bbca", ResidualIncomeValuationAssumptions{
+	valuation, err := valuationService.Calculate(context.Background(), "bbca", ResidualIncomeValuationAssumptions{
 		ForecastYears:      5,
 		TerminalROE:        0.12,
 		TerminalGrowthRate: 0.03,
 		EquityRiskPremium:  0.06,
 	})
 	if err != nil {
-		t.Fatalf("CalculateResidualIncome returned error: %v", err)
+		t.Fatalf("Calculate returned error: %v", err)
 	}
 	if valuation.Beta != -0.04 {
 		t.Fatalf("Beta = %v, want -0.04", valuation.Beta)
+	}
+	if repo.masterDataKey != MasterDataKeyIndonesia10YearBondYield {
+		t.Fatalf("master data key = %q, want %q", repo.masterDataKey, MasterDataKeyIndonesia10YearBondYield)
 	}
 	assertFloatClose(t, valuation.CostOfEquity, 0.0551)
 	assertFloatClose(t, valuation.CurrentROE, 0.20)
@@ -85,14 +118,14 @@ func TestCalculateResidualIncomeRejectsInconsistentTerminalAssumptions(t *testin
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
 	}
-	valuationService := NewStockValuationService(&stubFCFPerShareValuationRepository{
+	valuationService := NewResidualIncomeValuationService(&stubResidualIncomeValuationRepository{
 		stock:        repository.Stock{Ticker: "TEST", Active: true},
 		fundamentals: repository.StockFundamentals{Ticker: "TEST", Payload: payload, ScrapedAt: scrapedAt},
-		biRate:       repository.MasterData{Key: "bi_rate", Value: 5},
+		bondYield:    repository.MasterData{Key: MasterDataKeyIndonesia10YearBondYield, Value: 5},
 		stockBeta:    repository.StockBeta{Ticker: "TEST", Value: 1},
 	})
 
-	_, err = valuationService.CalculateResidualIncome(context.Background(), "TEST", ResidualIncomeValuationAssumptions{
+	_, err = valuationService.Calculate(context.Background(), "TEST", ResidualIncomeValuationAssumptions{
 		TerminalROE:        0.02,
 		TerminalGrowthRate: 0.03,
 		EquityRiskPremium:  0.06,
@@ -155,30 +188,30 @@ func TestReadResidualIncomeMetricsRejectsMalformedDividendHistory(t *testing.T) 
 func TestCalculateResidualIncomeClassifiesRepositoryErrors(t *testing.T) {
 	infrastructureErr := errors.New("database unavailable")
 	validPayload := residualIncomePayload(t, "10%", []any{})
-	base := stubFCFPerShareValuationRepository{
+	base := stubResidualIncomeValuationRepository{
 		stock:        repository.Stock{Ticker: "TEST", Active: true},
 		fundamentals: repository.StockFundamentals{Ticker: "TEST", Payload: validPayload, ScrapedAt: time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)},
-		biRate:       repository.MasterData{Key: "bi_rate", Value: 5},
+		bondYield:    repository.MasterData{Key: MasterDataKeyIndonesia10YearBondYield, Value: 5},
 		stockBeta:    repository.StockBeta{Ticker: "TEST", Value: 1},
 	}
 	assumptions := ResidualIncomeValuationAssumptions{TerminalROE: 0.10, TerminalGrowthRate: 0.03, EquityRiskPremium: 0.06}
 
 	for _, tc := range []struct {
 		name        string
-		configure   func(*stubFCFPerShareValuationRepository)
+		configure   func(*stubResidualIncomeValuationRepository)
 		wantInvalid bool
 		wantCause   error
 	}{
-		{name: "missing fundamentals", configure: func(r *stubFCFPerShareValuationRepository) { r.fundamentalsErr = repository.ErrStockNotFound }, wantInvalid: true},
-		{name: "fundamentals infrastructure", configure: func(r *stubFCFPerShareValuationRepository) { r.fundamentalsErr = infrastructureErr }, wantCause: infrastructureErr},
-		{name: "missing BI rate", configure: func(r *stubFCFPerShareValuationRepository) { r.masterDataErr = repository.ErrMasterDataNotFound }, wantInvalid: true},
-		{name: "BI rate infrastructure", configure: func(r *stubFCFPerShareValuationRepository) { r.masterDataErr = infrastructureErr }, wantCause: infrastructureErr},
-		{name: "missing beta", configure: func(r *stubFCFPerShareValuationRepository) { r.stockBetaErr = repository.ErrStockBetaNotFound }, wantInvalid: true},
+		{name: "missing fundamentals", configure: func(r *stubResidualIncomeValuationRepository) { r.fundamentalsErr = repository.ErrStockNotFound }, wantInvalid: true},
+		{name: "fundamentals infrastructure", configure: func(r *stubResidualIncomeValuationRepository) { r.fundamentalsErr = infrastructureErr }, wantCause: infrastructureErr},
+		{name: "missing 10-year bond yield", configure: func(r *stubResidualIncomeValuationRepository) { r.masterDataErr = repository.ErrMasterDataNotFound }, wantInvalid: true},
+		{name: "10-year bond yield infrastructure", configure: func(r *stubResidualIncomeValuationRepository) { r.masterDataErr = infrastructureErr }, wantCause: infrastructureErr},
+		{name: "missing beta", configure: func(r *stubResidualIncomeValuationRepository) { r.stockBetaErr = repository.ErrStockBetaNotFound }, wantInvalid: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := base
 			tc.configure(&repo)
-			_, err := NewStockValuationService(&repo).CalculateResidualIncome(context.Background(), "TEST", assumptions)
+			_, err := NewResidualIncomeValuationService(&repo).Calculate(context.Background(), "TEST", assumptions)
 			if tc.wantInvalid && !errors.Is(err, ErrInvalidResidualIncomeAssumptions) {
 				t.Fatalf("error = %v, want ErrInvalidResidualIncomeAssumptions", err)
 			}
@@ -196,19 +229,19 @@ func TestCalculateResidualIncomeClassifiesRepositoryErrors(t *testing.T) {
 
 func TestCalculateResidualIncomeDefaultsForecastAndMatchesIndependentExample(t *testing.T) {
 	scrapedAt := time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)
-	repo := &stubFCFPerShareValuationRepository{
+	repo := &stubResidualIncomeValuationRepository{
 		stock:        repository.Stock{Ticker: "TEST", Active: true},
 		fundamentals: repository.StockFundamentals{Ticker: "TEST", Payload: residualIncomePayload(t, "20%", []any{map[string]any{"exDate": "01 Jan 26", "dividend": "120"}}), ScrapedAt: scrapedAt},
-		biRate:       repository.MasterData{Key: "bi_rate", Value: 5},
+		bondYield:    repository.MasterData{Key: MasterDataKeyIndonesia10YearBondYield, Value: 5},
 		stockBeta:    repository.StockBeta{Ticker: "TEST", Value: 1},
 	}
-	valuation, err := NewStockValuationService(repo).CalculateResidualIncome(context.Background(), "TEST", ResidualIncomeValuationAssumptions{
+	valuation, err := NewResidualIncomeValuationService(repo).Calculate(context.Background(), "TEST", ResidualIncomeValuationAssumptions{
 		TerminalROE:        0.10,
 		TerminalGrowthRate: 0.02,
 		EquityRiskPremium:  0.05,
 	})
 	if err != nil {
-		t.Fatalf("CalculateResidualIncome returned error: %v", err)
+		t.Fatalf("Calculate returned error: %v", err)
 	}
 	if valuation.ForecastYears != 5 || len(valuation.Forecast) != 5 {
 		t.Fatalf("forecast years = %d, len = %d; want 5", valuation.ForecastYears, len(valuation.Forecast))

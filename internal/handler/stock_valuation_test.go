@@ -28,7 +28,7 @@ func (r *residualIncomeHandlerRepository) GetStock(context.Context, string) (rep
 }
 
 func (r *residualIncomeHandlerRepository) GetMasterData(context.Context, string) (repository.MasterData, error) {
-	return repository.MasterData{Key: "bi_rate", Value: 5}, nil
+	return repository.MasterData{Key: service.MasterDataKeyIndonesia10YearBondYield, Value: 5}, nil
 }
 
 func (r *residualIncomeHandlerRepository) GetFundamentals(context.Context, string) (repository.StockFundamentals, error) {
@@ -82,7 +82,7 @@ func TestCalculateStockResidualIncomeResponseClassification(t *testing.T) {
 				logWriter = &logs
 			}
 			log := zerolog.New(logWriter)
-			h := New("test", &log, nil, Domains{StockValuation: service.NewStockValuationService(tc.repo)})
+			h := New("test", &log, nil, Domains{ResidualIncomeValuation: service.NewResidualIncomeValuationService(tc.repo)})
 			router := chi.NewRouter()
 			router.Post("/stocks/{ticker}/valuation/residual-income", h.Handle(h.CalculateStockResidualIncome))
 			req := httptest.NewRequest(http.MethodPost, "/stocks/TEST/valuation/residual-income", strings.NewReader(`{"terminal_roe":0.10,"terminal_growth_rate":0.03,"equity_risk_premium":0.06}`))
@@ -98,7 +98,7 @@ func TestCalculateStockResidualIncomeResponseClassification(t *testing.T) {
 
 func TestCalculateStockResidualIncomeSuccessEnvelope(t *testing.T) {
 	log := zerolog.New(io.Discard)
-	h := New("test", &log, nil, Domains{StockValuation: service.NewStockValuationService(&residualIncomeHandlerRepository{})})
+	h := New("test", &log, nil, Domains{ResidualIncomeValuation: service.NewResidualIncomeValuationService(&residualIncomeHandlerRepository{})})
 	router := chi.NewRouter()
 	router.Post("/stocks/{ticker}/valuation/residual-income", h.Handle(h.CalculateStockResidualIncome))
 	req := httptest.NewRequest(http.MethodPost, "/stocks/TEST/valuation/residual-income", strings.NewReader(`{"terminal_roe":0.10,"terminal_growth_rate":0.03,"equity_risk_premium":0.06}`))

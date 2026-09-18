@@ -14,6 +14,12 @@ var (
 	ErrInvalidMasterDataValue = errors.New("master data value must be greater than zero")
 )
 
+const (
+	MasterDataKeyUSDtoIDR                 = "usd_idr_rate"
+	MasterDataKeyBIRate                   = "bi_rate"
+	MasterDataKeyIndonesia10YearBondYield = "indonesia_10_year_bond_yield"
+)
+
 type masterDataRepository interface {
 	ListMasterData(ctx context.Context) ([]repository.MasterData, error)
 	UpdateMasterData(ctx context.Context, key string, value float64) (repository.MasterData, error)
@@ -33,7 +39,7 @@ func (s *MasterDataService) ListMasterData(ctx context.Context) ([]repository.Ma
 }
 
 func (s *MasterDataService) UpdateMasterData(ctx context.Context, key string, value float64) (repository.MasterData, error) {
-	if key != "usd_idr_rate" && key != "bi_rate" {
+	if key != MasterDataKeyUSDtoIDR && key != MasterDataKeyBIRate && key != MasterDataKeyIndonesia10YearBondYield {
 		return repository.MasterData{}, ErrInvalidMasterDataKey
 	}
 	if value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {

@@ -65,7 +65,7 @@ func (h Handler) CalculateStockFCFPerShare(w http.ResponseWriter, req *http.Requ
 	if err := binding.BindJSON(req.Body, &body); err != nil {
 		return response.Fail(w, http.StatusBadRequest, "invalid request body")
 	}
-	valuation, err := h.stockValuationService.CalculateFCFPerShare(req.Context(), chi.URLParam(req, "ticker"), service.FCFPerShareValuationAssumptions{GrowthRate: body.GrowthRate, ForecastYears: body.ForecastYears, TerminalGrowthRate: body.TerminalGrowthRate, EquityRiskPremium: body.EquityRiskPremium})
+	valuation, err := h.fcfPerShareValuationService.Calculate(req.Context(), chi.URLParam(req, "ticker"), service.FCFPerShareValuationAssumptions{GrowthRate: body.GrowthRate, ForecastYears: body.ForecastYears, TerminalGrowthRate: body.TerminalGrowthRate, EquityRiskPremium: body.EquityRiskPremium})
 	if err != nil {
 		if errors.Is(err, service.ErrStockNotFound) || errors.Is(err, service.ErrInactiveStock) {
 			return response.Fail(w, http.StatusNotFound, "stock not found")
@@ -84,7 +84,7 @@ func (h Handler) CalculateStockResidualIncome(w http.ResponseWriter, req *http.R
 	if err := binding.BindJSON(req.Body, &body); err != nil {
 		return response.Fail(w, http.StatusBadRequest, "invalid request body")
 	}
-	valuation, err := h.stockValuationService.CalculateResidualIncome(req.Context(), chi.URLParam(req, "ticker"), service.ResidualIncomeValuationAssumptions{
+	valuation, err := h.residualIncomeValuationService.Calculate(req.Context(), chi.URLParam(req, "ticker"), service.ResidualIncomeValuationAssumptions{
 		ForecastYears:      body.ForecastYears,
 		TerminalROE:        body.TerminalROE,
 		TerminalGrowthRate: body.TerminalGrowthRate,

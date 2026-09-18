@@ -17,32 +17,36 @@ import (
 )
 
 type Handler struct {
-	status                string
-	log                   *zerolog.Logger
-	authService           *service.AuthService
-	commodityService      *service.CommodityService
-	stockService          *service.StockService
-	stockValuationService *service.StockValuationService
-	portfolioService      *service.PortfolioService
-	cashService           *service.CashService
-	bondService           *service.BondService
-	goldService           *service.GoldService
-	masterDataService     *service.MasterDataService
+	portfolioStockService          *service.PortfolioStockService
+	status                         string
+	log                            *zerolog.Logger
+	authService                    *service.AuthService
+	commodityService               *service.CommodityService
+	stockService                   *service.StockService
+	fcfPerShareValuationService    *service.FCFPerShareValuationService
+	residualIncomeValuationService *service.ResidualIncomeValuationService
+	portfolioService               *service.PortfolioService
+	cashService                    *service.CashService
+	bondService                    *service.BondService
+	goldService                    *service.GoldService
+	masterDataService              *service.MasterDataService
 }
 
 func New(status string, log *zerolog.Logger, authService *service.AuthService, domains Domains) Handler {
 	return Handler{
-		status:                status,
-		log:                   log,
-		authService:           authService,
-		commodityService:      domains.Commodity,
-		stockService:          domains.Stock,
-		stockValuationService: domains.StockValuation,
-		portfolioService:      domains.Portfolio,
-		cashService:           domains.Cash,
-		bondService:           domains.Bond,
-		goldService:           domains.Gold,
-		masterDataService:     domains.MasterData,
+		status:                         status,
+		portfolioStockService:          domains.PortfolioStock,
+		log:                            log,
+		authService:                    authService,
+		commodityService:               domains.Commodity,
+		stockService:                   domains.Stock,
+		fcfPerShareValuationService:    domains.FCFPerShareValuation,
+		residualIncomeValuationService: domains.ResidualIncomeValuation,
+		portfolioService:               domains.Portfolio,
+		cashService:                    domains.Cash,
+		bondService:                    domains.Bond,
+		goldService:                    domains.Gold,
+		masterDataService:              domains.MasterData,
 	}
 }
 
@@ -53,14 +57,16 @@ func (h Handler) fail(w http.ResponseWriter, status int, message string) {
 }
 
 type Domains struct {
-	Commodity      *service.CommodityService
-	Stock          *service.StockService
-	StockValuation *service.StockValuationService
-	Portfolio      *service.PortfolioService
-	Cash           *service.CashService
-	Bond           *service.BondService
-	Gold           *service.GoldService
-	MasterData     *service.MasterDataService
+	PortfolioStock          *service.PortfolioStockService
+	Commodity               *service.CommodityService
+	Stock                   *service.StockService
+	FCFPerShareValuation    *service.FCFPerShareValuationService
+	ResidualIncomeValuation *service.ResidualIncomeValuationService
+	Portfolio               *service.PortfolioService
+	Cash                    *service.CashService
+	Bond                    *service.BondService
+	Gold                    *service.GoldService
+	MasterData              *service.MasterDataService
 }
 
 // Handle logs response errors and writes a fallback only before a response starts.
@@ -204,6 +210,11 @@ func mapPortfolioHTTPError(err error, fallback string, rules ...httpErrorRule) (
 
 func portfolioHTTPError(err error, fallback string) (int, string) {
 	return mapPortfolioHTTPError(err, fallback,
+		httpErrorRule{service.ErrInvalidStockTransaction, http.StatusBadRequest, service.ErrInvalidStockTransaction.Error()},
+		httpErrorRule{repository.ErrPortfolioStockAccount, http.StatusBadRequest, "account does not belong to portfolio"},
+		httpErrorRule{repository.ErrPortfolioStockQuantity, http.StatusConflict, "insufficient stock quantity at transaction date"},
+		httpErrorRule{repository.ErrPortfolioStockTransactionNotFound, http.StatusNotFound, "stock transaction not found"},
+		httpErrorRule{repository.ErrStockNotFound, http.StatusNotFound, "stock ticker not found"},
 		httpErrorRule{service.ErrInvalidPortfolioID, http.StatusBadRequest, "portfolio_id and target_portfolio_id are required"},
 		httpErrorRule{service.ErrInvalidPortfolioName, http.StatusBadRequest, "name is required"},
 		httpErrorRule{service.ErrInvalidPortfolioMove, http.StatusBadRequest, "target_portfolio_id must be different from portfolio_id"},
@@ -449,6 +460,11 @@ func bindBondTransactionRequest(req *http.Request) (service.BondTransactionInput
 
 func bondHTTPError(err error, fallback string) (int, string) {
 	return mapPortfolioHTTPError(err, fallback,
+		httpErrorRule{service.ErrInvalidStockTransaction, http.StatusBadRequest, service.ErrInvalidStockTransaction.Error()},
+		httpErrorRule{repository.ErrPortfolioStockAccount, http.StatusBadRequest, "account does not belong to portfolio"},
+		httpErrorRule{repository.ErrPortfolioStockQuantity, http.StatusConflict, "insufficient stock quantity at transaction date"},
+		httpErrorRule{repository.ErrPortfolioStockTransactionNotFound, http.StatusNotFound, "stock transaction not found"},
+		httpErrorRule{repository.ErrStockNotFound, http.StatusNotFound, "stock ticker not found"},
 		httpErrorRule{service.ErrInvalidPortfolioID, http.StatusBadRequest, "portfolio_id is required"},
 		httpErrorRule{service.ErrInvalidTransactionID, http.StatusBadRequest, "transaction_id is required"},
 		httpErrorRule{service.ErrInvalidBondAsset, http.StatusBadRequest, "valid bond asset is required"},
@@ -573,6 +589,11 @@ func bindCashTransactionRequest(req *http.Request) (service.CashTransactionInput
 
 func cashHTTPError(err error, fallback string) (int, string) {
 	return mapPortfolioHTTPError(err, fallback,
+		httpErrorRule{service.ErrInvalidStockTransaction, http.StatusBadRequest, service.ErrInvalidStockTransaction.Error()},
+		httpErrorRule{repository.ErrPortfolioStockAccount, http.StatusBadRequest, "account does not belong to portfolio"},
+		httpErrorRule{repository.ErrPortfolioStockQuantity, http.StatusConflict, "insufficient stock quantity at transaction date"},
+		httpErrorRule{repository.ErrPortfolioStockTransactionNotFound, http.StatusNotFound, "stock transaction not found"},
+		httpErrorRule{repository.ErrStockNotFound, http.StatusNotFound, "stock ticker not found"},
 		httpErrorRule{service.ErrInvalidPortfolioID, http.StatusBadRequest, "portfolio_id is required"},
 		httpErrorRule{service.ErrInvalidTransactionID, http.StatusBadRequest, "transaction_id is required"},
 		httpErrorRule{service.ErrInvalidCashAccount, http.StatusBadRequest, "valid account_id or account_name is required"},

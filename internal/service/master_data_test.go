@@ -35,6 +35,19 @@ func TestMasterDataServiceUpdate(t *testing.T) {
 	}
 }
 
+func TestMasterDataServiceUpdateAllowsIndonesia10YearBondYield(t *testing.T) {
+	repoStub := &masterDataRepositoryStub{}
+	service := NewMasterDataService(repoStub)
+
+	item, err := service.UpdateMasterData(context.Background(), MasterDataKeyIndonesia10YearBondYield, 6.75)
+	if err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+	if item.Value != 6.75 || repoStub.updatedKey != MasterDataKeyIndonesia10YearBondYield {
+		t.Fatalf("unexpected update: item=%+v key=%q", item, repoStub.updatedKey)
+	}
+}
+
 func TestMasterDataServiceUpdateRejectsUnknownKey(t *testing.T) {
 	service := NewMasterDataService(&masterDataRepositoryStub{})
 	_, err := service.UpdateMasterData(context.Background(), "unknown", 1)
@@ -45,7 +58,7 @@ func TestMasterDataServiceUpdateRejectsUnknownKey(t *testing.T) {
 
 func TestMasterDataServiceUpdateRejectsNonPositiveValue(t *testing.T) {
 	service := NewMasterDataService(&masterDataRepositoryStub{})
-	_, err := service.UpdateMasterData(context.Background(), "bi_rate", 0)
+	_, err := service.UpdateMasterData(context.Background(), MasterDataKeyIndonesia10YearBondYield, 0)
 	if err != ErrInvalidMasterDataValue {
 		t.Fatalf("error = %v, want %v", err, ErrInvalidMasterDataValue)
 	}

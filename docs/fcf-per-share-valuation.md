@@ -5,11 +5,11 @@
 `POST /api/v1/private/stocks/{ticker}/valuation/fcf-per-share` estimates fair value per share for a going concern. It reads Free Cash Flow Per Share (TTM) from the latest stored fundamentals, forecasts it for an explicit period, discounts it using Cost of Equity, and uses Gordon growth after that period.
 
 ```
-cost of equity = BI rate + beta x equity risk premium
+cost of equity = Indonesia 10-year government bond yield + beta x equity risk premium
 terminal value = next year FCF per share / (cost of equity - terminal growth)
 ```
 
-`master_data.bi_rate` is maintained as percentage points in the admin UI and converted to a decimal for this calculation (`5.75` becomes `0.0575`). Beta is loaded from the ticker's Yahoo Finance `5y`/`1mo` record in `stock_betas`. Request rate assumptions remain decimal values.
+`master_data.indonesia_10_year_bond_yield` is maintained as percentage points in the admin UI and converted to a decimal for this calculation (`6.75` becomes `0.0675`). It represents the Indonesia 10-year government bond yield used as the IDR risk-free rate. Beta is loaded from the ticker's Yahoo Finance `5y`/`1mo` record in `stock_betas`. Request rate assumptions remain decimal values.
 
 If `growth_rate` is omitted, the API derives it as `ROE x (1 - DPS TTM / EPS TTM)`.
 

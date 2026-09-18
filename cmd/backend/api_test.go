@@ -102,7 +102,7 @@ func TestNestedRoutesPreserveV2PathsAndAuthorization(t *testing.T) {
 			if !strings.Contains(route.path, "/private/") {
 				return
 			}
-			path := strings.NewReplacer("{portfolio_id}", "p-1", "{transaction_id}", "tx-1", "{asset_id}", "a-1", "{ticker}", "BBCA", "{commodity}", "gold", "{key}", "bi_rate").Replace(route.path)
+			path := strings.NewReplacer("{portfolio_id}", "p-1", "{transaction_id}", "tx-1", "{asset_id}", "a-1", "{ticker}", "BBCA", "{commodity}", "gold", "{key}", "indonesia_10_year_bond_yield").Replace(route.path)
 			for _, tc := range []struct {
 				token  string
 				status int

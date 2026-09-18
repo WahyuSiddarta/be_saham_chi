@@ -64,7 +64,8 @@ func EnsureMasterDataTables(ctx context.Context, pool *sqlx.DB) error {
 		INSERT INTO master_data (key, value)
 		VALUES
 			('usd_idr_rate', 0),
-			('bi_rate', 0)
+			('bi_rate', 0),
+			('indonesia_10_year_bond_yield', 0)
 		ON CONFLICT (key) DO NOTHING;
 	`)
 	return err

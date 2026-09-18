@@ -32,6 +32,7 @@ tags:
   - name: Cash
   - name: Bond
   - name: Portfolio Commodities
+  - name: Portfolio Stocks
   - name: Master Data
 x-tagGroups:
   - name: General
@@ -46,6 +47,7 @@ x-tagGroups:
       - Cash
       - Bond
       - Portfolio Commodities
+      - Portfolio Stocks
   - name: Admin
     tags:
       - Master Data
@@ -254,7 +256,7 @@ paths:
     post:
       tags: [Stocks]
       summary: Calculate a free-cash-flow-per-share valuation
-      description: Requires `market.stock.read`. Reads Free Cash Flow Per Share (TTM), ROE, Current EPS (TTM), and dividend history from stored fundamentals, BI rate from `master_data`, and the ticker's Yahoo Finance `5y`/`1mo` beta from `stock_betas`. This endpoint does not save a valuation.
+      description: Requires `market.stock.read`. Reads Free Cash Flow Per Share (TTM), ROE, Current EPS (TTM), and dividend history from stored fundamentals, the Indonesia 10-year government bond yield from `master_data`, and the ticker's Yahoo Finance `5y`/`1mo` beta from `stock_betas`. This endpoint does not save a valuation.
       security: [{bearerAuth: []}]
       parameters:
         - $ref: "#/components/parameters/StockTickerPath"
@@ -278,7 +280,7 @@ paths:
     post:
       tags: [Stocks]
       summary: Calculate a basic snapshot residual-income valuation
-      description: Requires `market.stock.read`. Uses the latest stored book value per share, EPS TTM, ROE TTM, trailing-twelve-month dividends, BI rate, and stored beta. It linearly fades current ROE and payout toward the terminal assumptions. This is a snapshot model, not a historical multi-year clean-surplus model, and it does not save the valuation.
+      description: Requires `market.stock.read`. Uses the latest stored book value per share, EPS TTM, ROE TTM, trailing-twelve-month dividends, the Indonesia 10-year government bond yield, and stored beta. It linearly fades current ROE and payout toward the terminal assumptions. This is a snapshot model, not a historical multi-year clean-surplus model, and it does not save the valuation.
       security: [{bearerAuth: []}]
       parameters:
         - $ref: "#/components/parameters/StockTickerPath"
@@ -1447,7 +1449,7 @@ paths:
         - bearerAuth: []
       responses:
         "200":
-          description: Current USD/IDR and BI rate values.
+          description: Current USD/IDR, BI rate, and Indonesia 10-year government bond yield values.
           content:
             application/json:
               schema:
@@ -1463,7 +1465,7 @@ paths:
       tags:
         - Master Data
       summary: Update a master data value
-      description: Supported keys are `usd_idr_rate` and `bi_rate`. Values must be greater than zero.
+      description: Supported keys are `usd_idr_rate`, `bi_rate`, and `indonesia_10_year_bond_yield`. Rate and yield values are percentage points; all values must be greater than zero.
       security:
         - bearerAuth: []
       parameters:
@@ -1475,6 +1477,7 @@ paths:
             enum:
               - usd_idr_rate
               - bi_rate
+              - indonesia_10_year_bond_yield
       requestBody:
         required: true
         content:
@@ -1496,6 +1499,198 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/v1/private/portfolio/{portfolio_id}/stocks:
+    parameters:
+      - $ref: "#/components/parameters/PortfolioIDPath"
+    get:
+      tags: [Portfolio Stocks]
+      summary: List stock holdings per account
+      description: |
+        Requires `portfolio.stock.read` and ownership of the portfolio.
+        Includes closed positions with realized PnL. Quotes are fetched from Yahoo with a bounded timeout; unavailable price and valuation fields are null, never cost-based estimates.
+      security: [{bearerAuth: []}]
+      responses:
+        "200":
+          description: Successful stock portfolio operation.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, data]
+                properties:
+                  status: {type: string, enum: [ok]}
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PortfolioStockHolding"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/private/portfolio/{portfolio_id}/stocks/transactions:
+    parameters:
+      - $ref: "#/components/parameters/PortfolioIDPath"
+    get:
+      tags: [Portfolio Stocks]
+      summary: List stock transactions
+      description: |
+        Requires `portfolio.stock.read` and ownership of the portfolio.
+      security: [{bearerAuth: []}]
+      responses:
+        "200":
+          description: Successful stock portfolio operation.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, data]
+                properties:
+                  status: {type: string, enum: [ok]}
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PortfolioStockTransaction"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Portfolio Stocks]
+      summary: Record a stock buy or sell
+      description: |
+        Requires `portfolio.stock.create` and ownership of the portfolio.
+        Atomically replays the affected account/ticker ledger in transaction_date, created_at, transaction_id order. Rejects historical overselling. Does not alter cash balances.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortfolioStockTransactionRequest"
+      responses:
+        "201":
+          description: Successful stock portfolio operation.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, data]
+                properties:
+                  status: {type: string, enum: [ok]}
+                  data:
+                    $ref: "#/components/schemas/PortfolioStockTransaction"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Insufficient shares at the transaction date or at a later sale after this change.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, enum: [nok]}
+                  data: {type: string}
+  /api/v1/private/portfolio/{portfolio_id}/stocks/transactions/{transaction_id}:
+    parameters:
+      - $ref: "#/components/parameters/PortfolioIDPath"
+      - name: transaction_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    put:
+      tags: [Portfolio Stocks]
+      summary: Replace a stock transaction and replay affected holdings
+      description: |
+        Requires `portfolio.stock.update` and ownership of the portfolio.
+        Atomically replays the affected account/ticker ledger in transaction_date, created_at, transaction_id order. Rejects historical overselling. Does not alter cash balances.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortfolioStockTransactionRequest"
+      responses:
+        "200":
+          description: Successful stock portfolio operation.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, data]
+                properties:
+                  status: {type: string, enum: [ok]}
+                  data:
+                    $ref: "#/components/schemas/PortfolioStockTransaction"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Insufficient shares at the transaction date or at a later sale after this change.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, enum: [nok]}
+                  data: {type: string}
+    delete:
+      tags: [Portfolio Stocks]
+      summary: Delete a stock transaction and replay its holding
+      description: |
+        Requires `portfolio.stock.delete` and ownership of the portfolio.
+        Atomically replays the affected account/ticker ledger in transaction_date, created_at, transaction_id order. Rejects historical overselling. Does not alter cash balances.
+      security: [{bearerAuth: []}]
+      responses:
+        "200":
+          description: Successful stock portfolio operation.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, data]
+                properties:
+                  status: {type: string, enum: [ok]}
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Insufficient shares at the transaction date or at a later sale after this change.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, enum: [nok]}
+                  data: {type: string}
 components:
   securitySchemes:
     bearerAuth:
@@ -1762,6 +1957,63 @@ components:
                 status: nok
                 data: "failed to update stock status"
   schemas:
+    PortfolioStockTransactionRequest:
+      type: object
+      required: [ticker, transaction_type, quantity, price]
+      description: |
+        Supply an existing account_id in this portfolio or a nonblank account_name (maximum 200 characters).
+        An account name creates a broker account or reuses the account with that exact name.
+        Ticker must exist in the stock master. Quantities are whole shares, not lots. All money is IDR.
+        Omitted transaction_date uses the current time on create and preserves the old time on update.
+        Future dates, nonfinite amounts, negative net sale proceeds and numeric amounts above 1e15 are rejected.
+      properties:
+        account_id: {type: string, format: uuid}
+        account_name: {type: string, maxLength: 200}
+        ticker: {type: string, pattern: '^[A-Za-z0-9-]{1,20}$', example: BBCA}
+        transaction_type: {type: string, enum: [buy, sell]}
+        quantity: {type: integer, minimum: 1, maximum: 1000000000000000, example: 100}
+        price: {type: number, exclusiveMinimum: true, minimum: 0, maximum: 1000000000000000}
+        fee_amount: {type: number, minimum: 0, default: 0}
+        tax_amount: {type: number, minimum: 0, default: 0}
+        transaction_date: {type: string, format: date-time}
+        notes: {type: string, maxLength: 2000, default: ''}
+    PortfolioStockTransaction:
+      type: object
+      properties:
+        transaction_id: {type: string, format: uuid}
+        portfolio_id: {type: string, format: uuid}
+        account_id: {type: string, format: uuid}
+        account_name: {type: string}
+        asset_id: {type: string, format: uuid}
+        ticker: {type: string}
+        name: {type: string}
+        transaction_type: {type: string, enum: [buy, sell]}
+        transaction_date: {type: string, format: date-time}
+        quantity: {type: integer}
+        price: {type: number}
+        gross_amount: {type: number}
+        cost_amount: {type: number, description: 'Buy cost including fees and taxes, or weighted average cost removed by a sale.'}
+        fee_amount: {type: number}
+        tax_amount: {type: number}
+        net_amount: {type: number, description: 'Buy outflow including fees and taxes, or sale proceeds after fees and taxes.'}
+        realized_pnl: {type: number}
+        notes: {type: string}
+    PortfolioStockHolding:
+      type: object
+      properties:
+        asset_id: {type: string, format: uuid}
+        ticker: {type: string}
+        name: {type: string}
+        account_id: {type: string, format: uuid}
+        account_name: {type: string}
+        quantity: {type: integer, description: Remaining shares; zero for a closed position.}
+        average_cost: {type: number}
+        total_cost: {type: number}
+        realized_pnl: {type: number}
+        price: {type: number, nullable: true}
+        price_fetched_at: {type: string, format: date-time, nullable: true, description: Quote retrieval time rather than exchange trade time.}
+        market_value: {type: number, nullable: true}
+        unrealized_pnl: {type: number, nullable: true}
     StatusOK:
       type: string
       enum:
@@ -1802,6 +2054,7 @@ components:
           enum:
             - usd_idr_rate
             - bi_rate
+            - indonesia_10_year_bond_yield
         value:
           type: number
           format: double
@@ -2758,7 +3011,7 @@ components:
                 dividend_per_share_ttm: {type: number, format: double}
                 eps_ttm: {type: number, format: double}
                 dividend_payout_ratio: {type: number, format: double}
-            risk_free_rate: {type: number, format: double, description: Current master_data.bi_rate converted from percentage points to a decimal rate.}
+            risk_free_rate: {type: number, format: double, description: Current master_data.indonesia_10_year_bond_yield converted from percentage points to a decimal rate.}
             beta: {type: number, format: double}
             cost_of_equity: {type: number, format: double}
             forecast:
@@ -2794,7 +3047,7 @@ components:
             book_value_per_share: {type: number, format: double}
             current_roe: {type: number, format: double, description: Stored ROE normalized to a decimal rate from its percent-formatted source value.}
             current_dividend_payout_ratio: {type: number, format: double, description: TTM dividends per share divided by EPS TTM. May exceed 1.}
-            risk_free_rate: {type: number, format: double, description: Current master_data.bi_rate converted from percentage points to a decimal rate.}
+            risk_free_rate: {type: number, format: double, description: Current master_data.indonesia_10_year_bond_yield converted from percentage points to a decimal rate.}
             beta: {type: number, format: double, description: Exact stored beta, including negative values.}
             cost_of_equity: {type: number, format: double}
             forecast_years: {type: integer}

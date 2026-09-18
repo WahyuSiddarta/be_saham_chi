@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,9 +14,7 @@ import (
 
 var ErrInvalidFCFPerShareAssumptions = errors.New("invalid fcf per share valuation assumptions")
 
-var errMalformedDividendHistory = errors.New("malformed dividend history")
-
-type StockValuationRepository interface {
+type FCFPerShareValuationRepository interface {
 	GetStock(context.Context, string) (repository.Stock, error)
 	GetMasterData(context.Context, string) (repository.MasterData, error)
 	GetFundamentals(context.Context, string) (repository.StockFundamentals, error)
@@ -57,21 +54,21 @@ type FCFPerShareValuation struct {
 	PresentTerminalValue float64
 	FairValuePerShare    float64
 }
-type StockValuationService struct {
-	repository StockValuationRepository
+type FCFPerShareValuationService struct {
+	repository FCFPerShareValuationRepository
 }
 
-func NewStockValuationService(repo StockValuationRepository) *StockValuationService {
-	return &StockValuationService{repository: repo}
+func NewFCFPerShareValuationService(repo FCFPerShareValuationRepository) *FCFPerShareValuationService {
+	return &FCFPerShareValuationService{repository: repo}
 }
 
-func (s *StockValuationService) CalculateFCFPerShare(ctx context.Context, ticker string, in FCFPerShareValuationAssumptions) (FCFPerShareValuation, error) {
+func (s *FCFPerShareValuationService) Calculate(ctx context.Context, ticker string, in FCFPerShareValuationAssumptions) (FCFPerShareValuation, error) {
 	stock, err := s.repository.GetStock(ctx, strings.ToUpper(strings.TrimSpace(ticker)))
 	if errors.Is(err, repository.ErrStockNotFound) {
 		return FCFPerShareValuation{}, ErrStockNotFound
 	}
 	if err != nil {
-		return FCFPerShareValuation{}, fmt.Errorf("stockValuationService.CalculateFCFPerShare -> GetStock: %w", err)
+		return FCFPerShareValuation{}, fmt.Errorf("fcfPerShareValuationService.Calculate -> GetStock: %w", err)
 	}
 	if !stock.Active {
 		return FCFPerShareValuation{}, ErrInactiveStock
@@ -84,11 +81,11 @@ func (s *StockValuationService) CalculateFCFPerShare(ctx context.Context, ticker
 	if err != nil {
 		return FCFPerShareValuation{}, err
 	}
-	biRate, err := s.repository.GetMasterData(ctx, "bi_rate")
+	bondYield, err := s.repository.GetMasterData(ctx, MasterDataKeyIndonesia10YearBondYield)
 	if err != nil {
-		return FCFPerShareValuation{}, fmt.Errorf("%w: bi_rate is unavailable", ErrInvalidFCFPerShareAssumptions)
+		return FCFPerShareValuation{}, fmt.Errorf("%w: %s is unavailable", ErrInvalidFCFPerShareAssumptions, MasterDataKeyIndonesia10YearBondYield)
 	}
-	riskFreeRate, err := percentagePointsToDecimal(biRate.Value, "bi_rate")
+	riskFreeRate, err := percentagePointsToDecimal(bondYield.Value, MasterDataKeyIndonesia10YearBondYield)
 	if err != nil {
 		return FCFPerShareValuation{}, err
 	}
@@ -97,7 +94,7 @@ func (s *StockValuationService) CalculateFCFPerShare(ctx context.Context, ticker
 		return FCFPerShareValuation{}, fmt.Errorf("%w: stock beta is unavailable", ErrInvalidFCFPerShareAssumptions)
 	}
 	if err != nil {
-		return FCFPerShareValuation{}, fmt.Errorf("stockValuationService.CalculateFCFPerShare -> GetStockBeta: %w", err)
+		return FCFPerShareValuation{}, fmt.Errorf("fcfPerShareValuationService.Calculate -> GetStockBeta: %w", err)
 	}
 	beta := stockBeta.Value
 	years := in.ForecastYears
@@ -189,28 +186,7 @@ func readFCFPerShareMetrics(payload json.RawMessage, scrapedAt time.Time) (fcfPe
 	}
 	return fcfPerShareMetrics{fcfPerShareTTM, roe, eps, dps}, nil
 }
-func findMetricByKeys(value any, keys ...string) (float64, bool) {
-	metrics, ok := value.(map[string]any)
-	if !ok {
-		return 0, false
-	}
-	for _, key := range keys {
-		metric, ok := metrics[key].(map[string]any)
-		if !ok {
-			continue
-		}
-		raw, ok := metric["value"].(string)
-		if !ok {
-			continue
-		}
-		parsed, err := parseNumber(raw)
-		if err == nil {
-			return parsed, true
-		}
-	}
-	return 0, false
-}
-func validateFCFPerShare(in FCFPerShareValuationAssumptions, growth float64, years int, bi, beta float64) error {
+func validateFCFPerShare(in FCFPerShareValuationAssumptions, growth float64, years int, riskFreeRate, beta float64) error {
 	if years < 1 || years > 10 {
 		return fmt.Errorf("%w: forecast_years must be between 1 and 10", ErrInvalidFCFPerShareAssumptions)
 	}
@@ -223,8 +199,8 @@ func validateFCFPerShare(in FCFPerShareValuationAssumptions, growth float64, yea
 	if growth <= -1 {
 		return fmt.Errorf("%w: growth_rate must be greater than -1", ErrInvalidFCFPerShareAssumptions)
 	}
-	if bi <= 0 || bi >= 1 {
-		return fmt.Errorf("%w: normalized bi_rate must be between 0 and 1", ErrInvalidFCFPerShareAssumptions)
+	if riskFreeRate <= 0 || riskFreeRate >= 1 {
+		return fmt.Errorf("%w: normalized %s must be between 0 and 1", ErrInvalidFCFPerShareAssumptions, MasterDataKeyIndonesia10YearBondYield)
 	}
 	if math.IsNaN(beta) || math.IsInf(beta, 0) {
 		return fmt.Errorf("%w: stored stock beta must be finite", ErrInvalidFCFPerShareAssumptions)
@@ -232,7 +208,7 @@ func validateFCFPerShare(in FCFPerShareValuationAssumptions, growth float64, yea
 	if math.IsNaN(growth) || math.IsInf(growth, 0) || math.IsNaN(in.TerminalGrowthRate) || math.IsInf(in.TerminalGrowthRate, 0) || math.IsNaN(in.EquityRiskPremium) || math.IsInf(in.EquityRiskPremium, 0) {
 		return fmt.Errorf("%w: values must be finite", ErrInvalidFCFPerShareAssumptions)
 	}
-	if in.TerminalGrowthRate >= bi+beta*in.EquityRiskPremium {
+	if in.TerminalGrowthRate >= riskFreeRate+beta*in.EquityRiskPremium {
 		return fmt.Errorf("%w: terminal_growth_rate must be less than cost_of_equity", ErrInvalidFCFPerShareAssumptions)
 	}
 	return nil
@@ -267,42 +243,4 @@ func findMetric(value any, matches func(string) bool) (float64, bool) {
 		}
 	}
 	return 0, false
-}
-func dividendPerShareTTM(history []any, asOf time.Time) (float64, error) {
-	cutoff := asOf.AddDate(-1, 0, 0)
-	total := 0.0
-	for _, raw := range history {
-		item, ok := raw.(map[string]any)
-		if !ok {
-			return 0, errMalformedDividendHistory
-		}
-		dateRaw, ok := item["exDate"].(string)
-		if !ok {
-			return 0, errMalformedDividendHistory
-		}
-		date, err := time.Parse("02 Jan 06", dateRaw)
-		if err != nil {
-			return 0, errMalformedDividendHistory
-		}
-		if date.Before(cutoff) || date.After(asOf) {
-			continue
-		}
-		dividend, ok := item["dividend"].(string)
-		if !ok {
-			return 0, errMalformedDividendHistory
-		}
-		amount, err := parseNumber(dividend)
-		if err != nil || amount < 0 {
-			return 0, errMalformedDividendHistory
-		}
-		total += amount
-	}
-	return total, nil
-}
-func parseNumber(raw string) (float64, error) {
-	value, err := strconv.ParseFloat(strings.TrimSpace(strings.NewReplacer(",", "", "%", "", "Rp", "", "IDR", "").Replace(raw)), 64)
-	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
-		return 0, errors.New("invalid number")
-	}
-	return value, nil
 }

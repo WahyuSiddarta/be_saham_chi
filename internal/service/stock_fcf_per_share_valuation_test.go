@@ -12,7 +12,8 @@ import (
 type stubFCFPerShareValuationRepository struct {
 	stock           repository.Stock
 	fundamentals    repository.StockFundamentals
-	biRate          repository.MasterData
+	bondYield       repository.MasterData
+	masterDataKey   string
 	stockBeta       repository.StockBeta
 	stockErr        error
 	fundamentalsErr error
@@ -24,8 +25,9 @@ func (r *stubFCFPerShareValuationRepository) GetStock(context.Context, string) (
 	return r.stock, r.stockErr
 }
 
-func (r *stubFCFPerShareValuationRepository) GetMasterData(context.Context, string) (repository.MasterData, error) {
-	return r.biRate, r.masterDataErr
+func (r *stubFCFPerShareValuationRepository) GetMasterData(_ context.Context, key string) (repository.MasterData, error) {
+	r.masterDataKey = key
+	return r.bondYield, r.masterDataErr
 }
 
 func (r *stubFCFPerShareValuationRepository) GetFundamentals(context.Context, string) (repository.StockFundamentals, error) {
@@ -67,26 +69,30 @@ func TestCalculateFCFPerShareUsesTTMMetricInsteadOfNegativeQuarter(t *testing.T)
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	valuationService := NewStockValuationService(&stubFCFPerShareValuationRepository{
+	repo := &stubFCFPerShareValuationRepository{
 		stock:        repository.Stock{Ticker: "BBCA", Active: true},
 		fundamentals: repository.StockFundamentals{Ticker: "BBCA", Payload: payload, ScrapedAt: scrapedAt},
-		biRate:       repository.MasterData{Key: "bi_rate", Value: 6},
+		bondYield:    repository.MasterData{Key: MasterDataKeyIndonesia10YearBondYield, Value: 6},
 		stockBeta:    repository.StockBeta{Ticker: "BBCA", Value: 1.2, Period: "5y", Interval: "1mo", Source: "yahoo_finance"},
-	})
+	}
+	valuationService := NewFCFPerShareValuationService(repo)
 
-	valuation, err := valuationService.CalculateFCFPerShare(context.Background(), "BBCA", FCFPerShareValuationAssumptions{
+	valuation, err := valuationService.Calculate(context.Background(), "BBCA", FCFPerShareValuationAssumptions{
 		ForecastYears:      5,
 		TerminalGrowthRate: 0.03,
 		EquityRiskPremium:  0.06,
 	})
 	if err != nil {
-		t.Fatalf("CalculateFCFPerShare returned error: %v", err)
+		t.Fatalf("Calculate returned error: %v", err)
 	}
 	if valuation.FCFPerShareTTM != 538.71 {
 		t.Fatalf("FCFPerShareTTM = %v, want 538.71", valuation.FCFPerShareTTM)
 	}
 	if valuation.RiskFreeRate != 0.06 {
 		t.Fatalf("RiskFreeRate = %v, want 0.06", valuation.RiskFreeRate)
+	}
+	if repo.masterDataKey != MasterDataKeyIndonesia10YearBondYield {
+		t.Fatalf("master data key = %q, want %q", repo.masterDataKey, MasterDataKeyIndonesia10YearBondYield)
 	}
 	if valuation.Beta != 1.2 {
 		t.Fatalf("Beta = %v, want 1.2", valuation.Beta)

@@ -14,7 +14,7 @@ RIM and addresses the production defects within that scope:
   below 1% and negative percentages;
 - a valid empty dividend history or no TTM events produces zero dividends,
   while malformed events remain invalid input;
-- missing fundamentals, BI rate, and beta remain client-facing unavailable
+- missing fundamentals, Indonesia 10-year government bond yield, and beta remain client-facing unavailable
   inputs, while unexpected repository failures retain their cause and map to
   HTTP 500;
 - focused service and handler tests cover the reviewed boundary, default,
@@ -53,7 +53,7 @@ For example:
 Percentage conversion must use the source unit or `%` suffix rather than the
 numeric magnitude.
 
-Relevant code: `internal/service/stock_residual_income.go`, ROE parsing in
+Relevant code: `internal/service/stock_residual_income_valuation.go`, ROE parsing in
 `readResidualIncomeMetrics`.
 
 ### High: zero-dividend companies are rejected
@@ -66,7 +66,7 @@ An absent TTM dividend event should be distinguished from malformed dividend
 data. A valid empty history should produce dividend per share of zero and a
 zero current payout ratio.
 
-Relevant code: `internal/service/stock_residual_income.go`, dividend-history
+Relevant code: `internal/service/stock_residual_income_valuation.go`, dividend-history
 handling in `readResidualIncomeMetrics` and the shared `dividendPerShareTTM`
 helper.
 
@@ -78,7 +78,7 @@ The service currently reads only the latest:
 - EPS TTM;
 - ROE TTM;
 - dividend events from the trailing twelve months;
-- BI rate; and
+- Indonesia 10-year government bond yield; and
 - stored stock beta.
 
 It then creates a synthetic forecast by linearly fading current ROE and payout
@@ -100,8 +100,8 @@ Missing valuation inputs may return a client-facing unavailable/validation
 response. Unexpected repository failures should retain their underlying error
 and produce HTTP 500.
 
-Relevant code: `internal/service/stock_residual_income.go`, repository reads in
-`CalculateResidualIncome`; `internal/handler/stock_valuation.go`, error mapping
+Relevant code: `internal/service/stock_residual_income_valuation.go`, repository reads in
+`Calculate`; `internal/handler/stock_valuation.go`, error mapping
 in `CalculateStockResidualIncome`.
 
 ### Medium: API and frontend integration are incomplete

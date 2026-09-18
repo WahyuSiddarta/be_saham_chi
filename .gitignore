@@ -28,6 +28,7 @@ go.work.sum
 # env file
 .env
 .env.*
+.env.production
 !.env.example
 
 # Local logs
